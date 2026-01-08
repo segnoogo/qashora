@@ -739,6 +739,18 @@ doc.setTextColor(255,255,255);
 doc.setFontSize(11);
 doc.text('Qashora',255,17);
 
+// Configuration des colonnes avec alignement
+const colStyles={};
+headers.forEach((h,i)=>{
+// Colonnes numériques (Débit, Crédit, montants) alignées à droite
+if(h.includes('Débit')||h.includes('Crédit')||h.includes('Solde')||h.includes('Encaiss')||h.includes('Décaiss'))
+colStyles[i]={halign:'right'};
+else if(h==='N°'||h==='Date')
+colStyles[i]={halign:'center'};
+else
+colStyles[i]={halign:'left'};
+});
+
 // Tableau avec meilleur style
 doc.autoTable({
 head:[headers],
@@ -773,15 +785,16 @@ styles:{
 lineColor:[200,200,200],
 lineWidth:0.3
 },
-columnStyles:{
-0:{halign:'center'},
-1:{halign:'left'},
-2:{halign:'center'},
-3:{halign:'center'},
-4:{halign:'left'},
-5:{halign:'right'},
-6:{halign:'right'},
-7:{halign:'center'}
+columnStyles:colStyles,
+didParseCell:function(data){
+// Appliquer l'alignement à droite pour les cellules numériques du footer
+if(data.section==='foot'){
+const val=String(data.cell.raw||'');
+// Si c'est un nombre ou contient "Solde:", aligner à droite
+if(/^\d/.test(val.replace(/\s/g,''))||val.includes('Solde:')){
+data.cell.styles.halign='right';
+}
+}
 }
 });
 

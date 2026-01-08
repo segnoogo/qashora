@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config={theme:{extend:{colors:{primary:{50:'#fdf4ff',100:'#fae8ff',200:'#f5d0fe',300:'#f0abfc',400:'#e879f9',500:'#d946ef',600:'#c026d3',700:'#a21caf',800:'#86198f',900:'#701a75'},secondary:{50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',500:'#06b6d4',600:'#0891b2',700:'#0e7490',800:'#155e75',900:'#164e63'},surface:{50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a',950:'#020617'}}}}}</script>
     <style>
@@ -682,16 +683,95 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 {Object.keys(st.sb).length>0&&(<div className="glass rounded-xl p-4"><h2 className="text-lg font-bold text-surface-100 mb-4">🏦 Soldes par Banque</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-2">{Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([b,s])=>(<div key={b} className={cn('p-3 rounded-lg border',s>=0?'bg-emerald-500/10 border-emerald-500/30':'bg-red-500/10 border-red-500/30')}><p className="text-xs text-surface-400 truncate">{b}</p><p className={cn('text-base font-mono font-bold',s>=0?'text-emerald-400':'text-red-400')}>{fmt(s)}</p></div>))}</div></div>)}
 </div>);};
 
-// ===== EXPORT PDF =====
+// ===== EXPORT PDF AMÉLIORÉ =====
 const exportPDF=(title,headers,rows,totals,filename)=>{
 const{jsPDF}=window.jspdf;
-const doc=new jsPDF();
-doc.setFontSize(18);doc.setTextColor(217,70,239);
+const doc=new jsPDF('landscape');
+
+// Titre avec style
+doc.setFontSize(20);
+doc.setTextColor(217,70,239);
 doc.text(title,14,20);
-doc.setFontSize(10);doc.setTextColor(100);
+
+// Sous-titre
+doc.setFontSize(10);
+doc.setTextColor(100,100,100);
 doc.text('Généré le '+new Date().toLocaleDateString('fr-FR')+' à '+new Date().toLocaleTimeString('fr-FR'),14,28);
-doc.autoTable({head:[headers],body:rows,foot:totals?[totals]:[],startY:35,theme:'grid',headStyles:{fillColor:[217,70,239],textColor:255,fontStyle:'bold'},footStyles:{fillColor:[30,41,59],textColor:[217,70,239],fontStyle:'bold'},styles:{fontSize:8,cellPadding:3},alternateRowStyles:{fillColor:[241,245,249]}});
+
+// Logo Qashora
+doc.setFillColor(217,70,239);
+doc.roundedRect(250,10,30,15,3,3,'F');
+doc.setTextColor(255,255,255);
+doc.setFontSize(12);
+doc.text('Qashora',255,20);
+
+// Tableau avec meilleur style
+doc.autoTable({
+head:[headers],
+body:rows,
+foot:totals?[totals]:[],
+startY:35,
+theme:'striped',
+headStyles:{
+fillColor:[217,70,239],
+textColor:[255,255,255],
+fontStyle:'bold',
+fontSize:9,
+halign:'center'
+},
+footStyles:{
+fillColor:[30,41,59],
+textColor:[217,70,239],
+fontStyle:'bold',
+fontSize:9
+},
+bodyStyles:{
+fontSize:8,
+textColor:[50,50,50]
+},
+alternateRowStyles:{
+fillColor:[248,250,252]
+},
+styles:{
+cellPadding:4,
+lineColor:[200,200,200],
+lineWidth:0.1
+},
+columnStyles:{
+0:{halign:'left'},
+1:{halign:'left'},
+2:{halign:'right'},
+3:{halign:'right'},
+4:{halign:'right'},
+5:{halign:'right'},
+6:{halign:'right'},
+7:{halign:'center'}
+}
+});
+
 doc.save(filename+'.pdf');
+};
+
+// ===== EXPORT EXCEL =====
+const exportExcel=(title,headers,rows,totals,filename)=>{
+const XLSX=window.XLSX;
+// Préparer les données
+const data=[headers,...rows];
+if(totals)data.push(totals);
+
+// Créer le workbook
+const wb=XLSX.utils.book_new();
+const ws=XLSX.utils.aoa_to_sheet(data);
+
+// Largeur des colonnes
+const colWidths=headers.map((h,i)=>{
+const maxLen=Math.max(h.length,...rows.map(r=>String(r[i]||'').length));
+return{wch:Math.min(maxLen+2,30)};
+});
+ws['!cols']=colWidths;
+
+XLSX.utils.book_append_sheet(wb,ws,title.substring(0,31));
+XLSX.writeFile(wb,filename+'.xlsx');
 };
 
 // ===== PAGE TRANSACTIONS =====
@@ -704,10 +784,10 @@ const tot=useMemo(()=>{const a=filtered.filter(t=>t.statut!=='Annulé');return{d
 const doSort=k=>setSort(p=>({k,d:p.k===k&&p.d==='asc'?'desc':'asc'}));
 const del=async t=>{if(confirm('Supprimer #'+t.numero+'?')){try{await deleteTrans(t.id,user?.username);showToast?.('Transaction supprimée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}}};
 const save=async d=>{setSaving(true);try{if(edit)await updateTrans(edit.id,d);else await addTrans({...d,createdBy:user?.username});setShow(false);setEdit(null);showToast?.(edit?'Transaction modifiée':'Transaction créée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}setSaving(false);};
-const expPDF=()=>{const headers=['Date','Banque','N°','Nature','Désignation','Débit','Crédit','Statut'];const rows=filtered.map(t=>[fmtD(t.date),t.banqueNom,t.numero,t.nature,t.designation?.substring(0,30)||'',fmt(t.debit),fmt(t.credit),t.statut]);const totals=['','','','','TOTAUX',fmt(tot.d),fmt(tot.c),'='+fmt(tot.d-tot.c)];exportPDF('Rapport des Transactions',headers,rows,totals,'transactions_'+new Date().toISOString().split('T')[0]);showToast?.('PDF généré','success');};
-const expCSV=()=>{const rows=[['Date','Banque','N°','Nature','Désignation','Bénéficiaire','Débit','Crédit','Statut']];filtered.forEach(t=>rows.push([fmtD(t.date),t.banqueNom,t.numero,t.nature,t.designation,t.beneficiaire,t.debit,t.credit,t.statut]));const csv=rows.map(r=>r.join(';')).join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='transactions.csv';a.click();showToast?.('CSV exporté','success');};
+const expPDF=()=>{const headers=['Date','Banque','N°','Nature','Désignation','Débit','Crédit','Statut'];const rows=filtered.map(t=>[fmtD(t.date),t.banqueNom,t.numero,t.nature,t.designation?.substring(0,30)||'',t.debit||0,t.credit||0,t.statut]);const totals=['','','','','TOTAUX',tot.d,tot.c,'Solde: '+(tot.d-tot.c)];exportPDF('Rapport des Transactions',headers,rows,totals,'transactions_'+new Date().toISOString().split('T')[0]);showToast?.('PDF généré','success');};
+const expExcel=()=>{const headers=['Date','Banque','N°','Nature','Désignation','Bénéficiaire','Débit','Crédit','Statut'];const rows=filtered.map(t=>[fmtD(t.date),t.banqueNom,t.numero,t.nature,t.designation||'',t.beneficiaire||'',t.debit||0,t.credit||0,t.statut]);const totals=['','','','','','TOTAUX',tot.d,tot.c,''];exportExcel('Transactions',headers,rows,totals,'transactions_'+new Date().toISOString().split('T')[0]);showToast?.('Excel exporté','success');};
 if(banques.length===0)return(<div className="animate-fade-in pt-16 md:pt-0"><Empty icon="🏦" title="Aucune banque configurée" desc="Ajoutez d'abord vos banques dans les paramètres"/></div>);
-return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0"><div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-surface-100">Transactions</h1><p className="text-surface-400 mt-1">{filtered.length} résultat(s)</p></div><div className="flex gap-2 flex-wrap">{canCreate&&<Button onClick={()=>{setEdit(null);setShow(true);}} icon="➕">Nouvelle</Button>}<Button variant="secondary" onClick={expPDF} icon="📄">PDF</Button><Button variant="secondary" onClick={expCSV} icon="📥">CSV</Button></div></div>
+return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0"><div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-surface-100">Transactions</h1><p className="text-surface-400 mt-1">{filtered.length} résultat(s)</p></div><div className="flex gap-2 flex-wrap">{canCreate&&<Button onClick={()=>{setEdit(null);setShow(true);}} icon="➕">Nouvelle</Button>}<Button variant="secondary" onClick={expPDF} icon="📄">PDF</Button><Button variant="secondary" onClick={expExcel} icon="📊">Excel</Button></div></div>
 <div className="glass rounded-xl p-4"><div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3"><input type="text" placeholder="🔍 Rechercher..." value={f.q} onChange={e=>setF(p=>({...p,q:e.target.value}))} className="col-span-2 px-3 py-2.5 bg-surface-800 border border-surface-600 rounded-xl text-surface-100 text-sm"/><Select value={f.banque} onChange={e=>setF(p=>({...p,banque:e.target.value}))} options={banques.map(b=>b.nom)} placeholder="Banque"/><Select value={f.nature} onChange={e=>setF(p=>({...p,nature:e.target.value}))} options={params.natures} placeholder="Nature"/><Select value={f.statut} onChange={e=>setF(p=>({...p,statut:e.target.value}))} options={params.statuts} placeholder="Statut"/><Select value={f.period} onChange={e=>setPeriod(e.target.value)} options={periods.map(p=>({value:p.value,label:p.label}))}/><Button variant="secondary" onClick={()=>setF({q:'',banque:'',nature:'',statut:'',d1:'',d2:'',period:''})} icon="🔄" size="sm">Réinit.</Button></div><div className="grid grid-cols-2 gap-3 mt-3"><Input type="date" label="Du" value={f.d1} onChange={e=>setF(p=>({...p,d1:e.target.value,period:''}))}/><Input type="date" label="Au" value={f.d2} onChange={e=>setF(p=>({...p,d2:e.target.value,period:''}))}/></div></div>
 {filtered.length===0?(<div className="glass rounded-xl p-8"><Empty icon="📋" title="Aucune transaction" desc={f.q||f.banque||f.nature||f.statut||f.d1?'Modifiez vos filtres':'Créez votre première transaction'} action={canCreate&&!f.q&&<Button onClick={()=>setShow(true)} icon="➕">Nouvelle transaction</Button>}/></div>):(<div className="glass rounded-xl overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-surface-800"><tr className="text-left text-xs text-surface-400">{[{k:'date',l:'Date'},{k:'banqueNom',l:'Banque'},{k:'numero',l:'N°'},{k:'nature',l:'Nature'},{k:'designation',l:'Désignation'},{k:'debit',l:'Débit'},{k:'credit',l:'Crédit'},{k:'statut',l:'Statut'}].map(c=>(<th key={c.k} className="px-3 md:px-4 py-3 cursor-pointer hover:text-surface-200 whitespace-nowrap" onClick={()=>doSort(c.k)}><div className="flex items-center gap-1">{c.l}{sort.k===c.k&&(sort.d==='asc'?'↑':'↓')}</div></th>))}{(canEdit||canDelete)&&<th className="px-3 md:px-4 py-3">Act.</th>}</tr></thead><tbody className="divide-y divide-surface-800">{filtered.map(t=>(<tr key={t.id} className={cn('table-row',t.statut==='Annulé'&&'opacity-50')}><td className="px-3 md:px-4 py-3 font-mono text-surface-300 text-xs">{fmtD(t.date)}</td><td className="px-3 md:px-4 py-3 text-surface-200 max-w-[100px] truncate text-xs">{t.banqueNom}</td><td className="px-3 md:px-4 py-3 font-mono text-surface-400 text-xs">{t.numero}</td><td className="px-3 md:px-4 py-3"><Badge variant={t.nature==='Recette'?'success':t.nature==='Dépense'?'info':'default'}>{t.nature}</Badge></td><td className="px-3 md:px-4 py-3 text-surface-300 max-w-[150px] truncate text-xs">{t.designation}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-emerald-400 text-xs">{t.debit&&parseFloat(t.debit)>0?fmt(t.debit):'-'}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-secondary-400 text-xs">{t.credit&&parseFloat(t.credit)>0?fmt(t.credit):'-'}</td><td className="px-3 md:px-4 py-3"><Badge variant={t.statut==='Confirmé'?'success':t.statut==='Annulé'?'danger':'warning'}>{t.statut?.substring(0,10)}</Badge></td>{(canEdit||canDelete)&&<td className="px-3 md:px-4 py-3"><div className="flex gap-1">{canEdit&&<button onClick={()=>{setEdit(t);setShow(true);}} className="p-1 hover:bg-surface-700 rounded text-surface-400 hover:text-primary-400">✏️</button>}{canDelete&&<button onClick={()=>del(t)} className="p-1 hover:bg-surface-700 rounded text-surface-400 hover:text-red-400">🗑️</button>}</div></td>}</tr>))}</tbody><tfoot className="bg-surface-800 border-t-2 border-primary-500"><tr className="font-bold"><td colSpan="5" className="px-3 md:px-4 py-3 text-right text-surface-200 text-xs">TOTAUX:</td><td className="px-3 md:px-4 py-3 text-right font-mono text-emerald-400">{fmt(tot.d)}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-secondary-400">{fmt(tot.c)}</td><td colSpan="2" className="px-3 md:px-4 py-3"><span className={cn('font-mono',tot.d-tot.c>=0?'text-emerald-400':'text-red-400')}>={fmt(tot.d-tot.c)}</span></td></tr></tfoot></table></div></div>)}
 <Modal isOpen={show} onClose={()=>{setShow(false);setEdit(null);}} title={edit?'Modifier la transaction':'Nouvelle transaction'} size="lg"><TransForm trans={edit} banques={banques} params={params} isAdmin={user?.role==='Admin'} onSave={save} onCancel={()=>{setShow(false);setEdit(null);}} saving={saving}/></Modal></div>);};
@@ -721,10 +801,10 @@ return(<form onSubmit={go} className="space-y-4"><div className="grid grid-cols-
 // ===== PAGE SOLDES =====
 const Soldes=({trans,banques,showToast})=>{const sb=useMemo(()=>{const a=trans.filter(t=>!t.deletedAt&&t.statut!=='Annulé');const r={};banques.forEach(b=>{const bt=a.filter(t=>t.banqueNom===b.nom);const soldeOuv=parseFloat(b.solde_ouverture)||0;const mvtD=bt.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const mvtC=bt.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);r[b.nom]={ouv:soldeOuv,d:mvtD,c:mvtC,s:soldeOuv+mvtD-mvtC,info:b};});return r;},[trans,banques]);
 const tot=useMemo(()=>Object.values(sb).reduce((a,b)=>({ouv:a.ouv+b.ouv,d:a.d+b.d,c:a.c+b.c,s:a.s+b.s}),{ouv:0,d:0,c:0,s:0}),[sb]);
-const expCSV=()=>{const rows=[['Banque','N° Compte','Gestionnaire','Contact','Solde Ouverture','Encaissements','Décaissements','Solde Final']];Object.entries(sb).forEach(([nom,d])=>rows.push([nom,d.info?.numero_compte||'',d.info?.gestionnaire||'',d.info?.contact||'',d.ouv,d.d,d.c,d.s]));const csv=rows.map(r=>r.join(';')).join('\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='soldes_'+new Date().toISOString().split('T')[0]+'.csv';a.click();showToast?.('CSV exporté','success');};
-const expPDF=()=>{const headers=['Banque','N° Compte','Solde Ouv.','Encaiss.','Décaiss.','Solde Final'];const rows=Object.entries(sb).map(([nom,d])=>[nom,d.info?.numero_compte||'-',fmt(d.ouv),fmt(d.d),fmt(d.c),fmt(d.s)]);const totals=['TOTAL','',fmt(tot.ouv),fmt(tot.d),fmt(tot.c),fmt(tot.s)];exportPDF('État des Soldes - '+new Date().toLocaleDateString('fr-FR'),headers,rows,totals,'soldes_'+new Date().toISOString().split('T')[0]);showToast?.('PDF généré','success');};
+const expExcel=()=>{const headers=['Banque','N° Compte','Gestionnaire','Contact','Solde Ouverture','Encaissements','Décaissements','Solde Final'];const rows=Object.entries(sb).map(([nom,d])=>[nom,d.info?.numero_compte||'',d.info?.gestionnaire||'',d.info?.contact||'',d.ouv,d.d,d.c,d.s]);const totals=['TOTAL','','','',tot.ouv,tot.d,tot.c,tot.s];exportExcel('Soldes',headers,rows,totals,'soldes_'+new Date().toISOString().split('T')[0]);showToast?.('Excel exporté','success');};
+const expPDF=()=>{const headers=['Banque','N° Compte','Solde Ouv.','Encaiss.','Décaiss.','Solde Final'];const rows=Object.entries(sb).map(([nom,d])=>[nom,d.info?.numero_compte||'-',d.ouv,d.d,d.c,d.s]);const totals=['TOTAL','',tot.ouv,tot.d,tot.c,tot.s];exportPDF('État des Soldes - '+new Date().toLocaleDateString('fr-FR'),headers,rows,totals,'soldes_'+new Date().toISOString().split('T')[0]);showToast?.('PDF généré','success');};
 if(banques.length===0)return(<div className="animate-fade-in pt-16 md:pt-0"><Empty icon="🏦" title="Aucune banque" desc="Configurez vos banques dans les paramètres"/></div>);
-return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0"><div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-surface-100">État des Soldes</h1><p className="text-surface-400 mt-1">Au {new Date().toLocaleDateString('fr-FR')}</p></div><div className="flex gap-2"><Button variant="secondary" onClick={expPDF} icon="📄">PDF</Button><Button variant="secondary" onClick={expCSV} icon="📥">CSV</Button></div></div><div className="glass rounded-xl p-5 border-2 border-primary-500/30"><h2 className="text-lg font-bold text-surface-100 mb-4">🏦 Total Général</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4"><div className="text-center p-3 md:p-4 bg-surface-800 rounded-xl border border-surface-700"><p className="text-xs md:text-sm text-surface-400 mb-1">Soldes d'ouverture</p><p className="text-lg md:text-xl font-mono font-bold text-surface-200">{fmt(tot.ouv)} F</p></div><div className="text-center p-3 md:p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/30"><p className="text-xs md:text-sm text-surface-400 mb-1">Encaissements</p><p className="text-lg md:text-xl font-mono font-bold text-emerald-400">{fmt(tot.d)} F</p></div><div className="text-center p-3 md:p-4 bg-secondary-500/10 rounded-xl border border-secondary-500/30"><p className="text-xs md:text-sm text-surface-400 mb-1">Décaissements</p><p className="text-lg md:text-xl font-mono font-bold text-secondary-400">{fmt(tot.c)} F</p></div><div className={cn('text-center p-3 md:p-4 rounded-xl',tot.s>=0?'bg-emerald-500/20 border border-emerald-500/30':'bg-red-500/20 border border-red-500/30')}><p className="text-xs md:text-sm text-surface-400 mb-1">Solde Final</p><p className={cn('text-lg md:text-xl font-mono font-bold',tot.s>=0?'text-emerald-400':'text-red-400')}>{fmt(tot.s)} F</p></div></div></div><div className="glass rounded-xl overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-surface-800"><tr className="text-left text-xs text-surface-400"><th className="px-3 md:px-4 py-3">Banque</th><th className="px-3 md:px-4 py-3 hidden md:table-cell">N° Compte</th><th className="px-3 md:px-4 py-3 hidden lg:table-cell">Gestionnaire</th><th className="px-3 md:px-4 py-3 text-right">Solde Ouv.</th><th className="px-3 md:px-4 py-3 text-right">Encaiss.</th><th className="px-3 md:px-4 py-3 text-right">Décaiss.</th><th className="px-3 md:px-4 py-3 text-right">Solde Final</th></tr></thead><tbody className="divide-y divide-surface-800">{Object.entries(sb).sort((a,b)=>Math.abs(b[1].s)-Math.abs(a[1].s)).map(([nom,d])=>(<tr key={nom} className="table-row"><td className="px-3 md:px-4 py-3"><div className="flex items-center gap-2"><div className={cn('w-2 h-2 rounded-full',d.s>=0?'bg-emerald-500':'bg-red-500')}/><span className="text-surface-200 font-medium text-xs md:text-sm">{nom}</span></div></td><td className="px-3 md:px-4 py-3 font-mono text-surface-400 text-xs hidden md:table-cell">{d.info?.numero_compte||'-'}</td><td className="px-3 md:px-4 py-3 text-surface-300 text-xs hidden lg:table-cell">{d.info?.gestionnaire||'-'}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-surface-300 text-xs">{d.ouv?fmt(d.ouv):'-'}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-emerald-400 text-xs">{d.d?fmt(d.d):'-'}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-secondary-400 text-xs">{d.c?fmt(d.c):'-'}</td><td className={cn('px-3 md:px-4 py-3 text-right font-mono font-bold text-xs md:text-sm',d.s>=0?'text-emerald-400':'text-red-400')}>{fmt(d.s)}</td></tr>))}</tbody><tfoot className="bg-surface-800 border-t-2 border-primary-500"><tr className="font-bold"><td className="px-3 md:px-4 py-3 text-surface-200">TOTAL</td><td className="px-3 md:px-4 py-3 hidden md:table-cell"></td><td className="px-3 md:px-4 py-3 hidden lg:table-cell"></td><td className="px-3 md:px-4 py-3 text-right font-mono text-surface-200">{fmt(tot.ouv)}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-emerald-400">{fmt(tot.d)}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-secondary-400">{fmt(tot.c)}</td><td className={cn('px-3 md:px-4 py-3 text-right font-mono',tot.s>=0?'text-emerald-400':'text-red-400')}>{fmt(tot.s)}</td></tr></tfoot></table></div></div></div>);};
+return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0"><div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-surface-100">État des Soldes</h1><p className="text-surface-400 mt-1">Au {new Date().toLocaleDateString('fr-FR')}</p></div><div className="flex gap-2"><Button variant="secondary" onClick={expPDF} icon="📄">PDF</Button><Button variant="secondary" onClick={expExcel} icon="📊">Excel</Button></div></div><div className="glass rounded-xl p-5 border-2 border-primary-500/30"><h2 className="text-lg font-bold text-surface-100 mb-4">🏦 Total Général</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4"><div className="text-center p-3 md:p-4 bg-surface-800 rounded-xl border border-surface-700"><p className="text-xs md:text-sm text-surface-400 mb-1">Soldes d'ouverture</p><p className="text-lg md:text-xl font-mono font-bold text-surface-200">{fmt(tot.ouv)} F</p></div><div className="text-center p-3 md:p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/30"><p className="text-xs md:text-sm text-surface-400 mb-1">Encaissements</p><p className="text-lg md:text-xl font-mono font-bold text-emerald-400">{fmt(tot.d)} F</p></div><div className="text-center p-3 md:p-4 bg-secondary-500/10 rounded-xl border border-secondary-500/30"><p className="text-xs md:text-sm text-surface-400 mb-1">Décaissements</p><p className="text-lg md:text-xl font-mono font-bold text-secondary-400">{fmt(tot.c)} F</p></div><div className={cn('text-center p-3 md:p-4 rounded-xl',tot.s>=0?'bg-emerald-500/20 border border-emerald-500/30':'bg-red-500/20 border border-red-500/30')}><p className="text-xs md:text-sm text-surface-400 mb-1">Solde Final</p><p className={cn('text-lg md:text-xl font-mono font-bold',tot.s>=0?'text-emerald-400':'text-red-400')}>{fmt(tot.s)} F</p></div></div></div><div className="glass rounded-xl overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-surface-800"><tr className="text-left text-xs text-surface-400"><th className="px-3 md:px-4 py-3">Banque</th><th className="px-3 md:px-4 py-3 hidden md:table-cell">N° Compte</th><th className="px-3 md:px-4 py-3 hidden lg:table-cell">Gestionnaire</th><th className="px-3 md:px-4 py-3 text-right">Solde Ouv.</th><th className="px-3 md:px-4 py-3 text-right">Encaiss.</th><th className="px-3 md:px-4 py-3 text-right">Décaiss.</th><th className="px-3 md:px-4 py-3 text-right">Solde Final</th></tr></thead><tbody className="divide-y divide-surface-800">{Object.entries(sb).sort((a,b)=>Math.abs(b[1].s)-Math.abs(a[1].s)).map(([nom,d])=>(<tr key={nom} className="table-row"><td className="px-3 md:px-4 py-3"><div className="flex items-center gap-2"><div className={cn('w-2 h-2 rounded-full',d.s>=0?'bg-emerald-500':'bg-red-500')}/><span className="text-surface-200 font-medium text-xs md:text-sm">{nom}</span></div></td><td className="px-3 md:px-4 py-3 font-mono text-surface-400 text-xs hidden md:table-cell">{d.info?.numero_compte||'-'}</td><td className="px-3 md:px-4 py-3 text-surface-300 text-xs hidden lg:table-cell">{d.info?.gestionnaire||'-'}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-surface-300 text-xs">{d.ouv?fmt(d.ouv):'-'}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-emerald-400 text-xs">{d.d?fmt(d.d):'-'}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-secondary-400 text-xs">{d.c?fmt(d.c):'-'}</td><td className={cn('px-3 md:px-4 py-3 text-right font-mono font-bold text-xs md:text-sm',d.s>=0?'text-emerald-400':'text-red-400')}>{fmt(d.s)}</td></tr>))}</tbody><tfoot className="bg-surface-800 border-t-2 border-primary-500"><tr className="font-bold"><td className="px-3 md:px-4 py-3 text-surface-200">TOTAL</td><td className="px-3 md:px-4 py-3 hidden md:table-cell"></td><td className="px-3 md:px-4 py-3 hidden lg:table-cell"></td><td className="px-3 md:px-4 py-3 text-right font-mono text-surface-200">{fmt(tot.ouv)}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-emerald-400">{fmt(tot.d)}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-secondary-400">{fmt(tot.c)}</td><td className={cn('px-3 md:px-4 py-3 text-right font-mono',tot.s>=0?'text-emerald-400':'text-red-400')}>{fmt(tot.s)}</td></tr></tfoot></table></div></div></div>);};
 
 // ===== PAGE USERS =====
 const Users=({data,showToast})=>{const{users,addUser,updateUser,deleteUser,resetPassword}=data;const[show,setShow]=useState(false);const[edit,setEdit]=useState(null);const[saving,setSaving]=useState(false);const[showReset,setShowReset]=useState(null);const[newPwd,setNewPwd]=useState('');

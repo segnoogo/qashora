@@ -263,17 +263,13 @@ date_fin:dateFin.toISOString(),
 montant:0
 }]);
 
-// 5. Créer les paramètres par défaut pour cette organisation
+// 5. Créer les paramètres essentiels (natures et statuts pour la logique métier)
 const defaultParams=[
-{organisation_id:org.id,type:'pays',valeur:'Sénégal'},
-{organisation_id:org.id,type:'pays',valeur:'Côte d\'Ivoire'},
-{organisation_id:org.id,type:'pays',valeur:'Mali'},
-{organisation_id:org.id,type:'nature',valeur:'Virement'},
-{organisation_id:org.id,type:'nature',valeur:'Chèque'},
-{organisation_id:org.id,type:'nature',valeur:'Espèces'},
-{organisation_id:org.id,type:'statut',valeur:'Validé'},
-{organisation_id:org.id,type:'statut',valeur:'En attente'},
-{organisation_id:org.id,type:'statut',valeur:'Annulé'}
+{organisation_id:org.id,type:'nature',valeur:'Recette',ordre:1,actif:true},
+{organisation_id:org.id,type:'nature',valeur:'Dépense',ordre:2,actif:true},
+{organisation_id:org.id,type:'statut',valeur:'Confirmé',ordre:1,actif:true},
+{organisation_id:org.id,type:'statut',valeur:'En attente',ordre:2,actif:true},
+{organisation_id:org.id,type:'statut',valeur:'Annulé',ordre:3,actif:true}
 ];
 await supabase.from('parametres').insert(defaultParams);
 

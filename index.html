@@ -450,7 +450,7 @@ const planActuel=PLANS[abonnement?.plan||'trial'];
 const isExpire=abonnement?.isExpire||joursRestants<=0;
 
 const handleSelectPlan=(planKey)=>{if(planKey===abonnement?.plan&&!isExpire)return;setSelectedPlan(planKey);setShowContactModal(true);};
-const getWhatsAppLink=()=>{const plan=PLANS[selectedPlan];const message=encodeURIComponent(`Bonjour! Je souhaite souscrire au plan ${plan.nom} de Qashora.\n💰 Montant: ${plan.prix.toLocaleString()} FCFA/mois`);return`https://wa.me/${WHATSAPP_CONTACT.replace('+','')}?text=${message}`;};
+const getWhatsAppLink=()=>{if(!selectedPlan)return'#';const plan=PLANS[selectedPlan];if(!plan)return'#';const message=encodeURIComponent(`Bonjour! Je souhaite souscrire au plan ${plan.nom} de Qashora.\n💰 Montant: ${plan.prix.toLocaleString()} FCFA/mois`);return`https://wa.me/${WHATSAPP_CONTACT.replace('+','')}?text=${message}`;};
 
 return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 <div><h1 className="text-2xl font-bold text-surface-100">💎 Abonnement</h1><p className="text-surface-400 mt-1">Gérez votre plan</p></div>
@@ -473,9 +473,9 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 </div></div>))}
 </div>
 
-<Modal isOpen={showContactModal} onClose={()=>setShowContactModal(false)} title={`📱 Souscrire au plan ${PLANS[selectedPlan]?.nom}`} size="sm">
+{showContactModal&&selectedPlan&&<Modal isOpen={showContactModal} onClose={()=>setShowContactModal(false)} title={`📱 Souscrire au plan ${PLANS[selectedPlan]?.nom||''}`} size="sm">
 <div className="space-y-4">
-<div className="p-4 bg-surface-800 rounded-xl text-center"><span className="text-4xl">{PLANS[selectedPlan]?.icon}</span><p className="text-xl font-bold text-surface-100 mt-2">{PLANS[selectedPlan]?.nom}</p><p className="text-2xl font-bold text-primary-400">{fmt(PLANS[selectedPlan]?.prix)} F/mois</p></div>
+<div className="p-4 bg-surface-800 rounded-xl text-center"><span className="text-4xl">{PLANS[selectedPlan]?.icon}</span><p className="text-xl font-bold text-surface-100 mt-2">{PLANS[selectedPlan]?.nom}</p><p className="text-2xl font-bold text-primary-400">{fmt(PLANS[selectedPlan]?.prix||0)} F/mois</p></div>
 <p className="text-sm text-surface-300">Contactez-nous :</p>
 <a href={getWhatsAppLink()} target="_blank" className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><span className="text-2xl">📱</span><div><p className="font-bold text-emerald-400">WhatsApp</p></div></a>
 <p className="text-xs text-surface-500 text-center">Activation sous 24h après paiement.</p>

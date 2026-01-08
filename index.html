@@ -1192,11 +1192,53 @@ return(<tr key={org.id} className="table-row">
 // ===== APPLICATION PRINCIPALE =====
 const App=()=>{
 const[user,setUser]=useState(null);
-const[view,setView]=useState('landing'); // landing, login, register, confirmEmail, app
+const[view,setView]=useState('loading'); // loading, landing, login, register, confirmEmail, app
 const[confirmEmail,setConfirmEmail]=useState('');
 const[page,setPage]=useState('dashboard');
 const[sidebarOpen,setSidebarOpen]=useState(false);
 const[toast,setToast]=useState(null);
+
+// Vérifier la session au démarrage
+useEffect(()=>{
+const checkSession=async()=>{
+try{
+// Récupérer la session Supabase Auth
+const{data:{session}}=await supabase.auth.getSession();
+
+if(session?.user){
+// Session existe, récupérer l'utilisateur depuis notre table
+const{data:userData}=await supabase
+.from('utilisateurs')
+.select('*')
+.eq('auth_id',session.user.id)
+.eq('actif',true)
+.single();
+
+if(userData){
+setUser(userData);
+setView('app');
+return;
+}
+}
+// Pas de session ou utilisateur non trouvé
+setView('landing');
+}catch(e){
+console.error('Session check error:',e);
+setView('landing');
+}
+};
+checkSession();
+
+// Écouter les changements d'authentification
+const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
+if(event==='SIGNED_OUT'){
+setUser(null);
+setView('landing');
+}
+});
+
+return()=>subscription.unsubscribe();
+},[]);
 
 // useData avec organisation_id de l'utilisateur connecté
 const data=useData(user?.organisation_id);
@@ -1207,6 +1249,9 @@ const isSuperAdmin=SUPER_ADMINS.includes(user?.email);
 const handleLogin=(u)=>{setUser(u);setView('app');showToast('Bienvenue '+u.username+' !','success');};
 const handleLogout=async()=>{await supabase.auth.signOut();setUser(null);setView('landing');};
 const handleNeedConfirmation=(email)=>{setConfirmEmail(email);setView('confirmEmail');};
+
+// Écran de chargement initial
+if(view==='loading')return(<div className="min-h-screen flex items-center justify-center"><Loader text="Chargement..." size="lg"/></div>);
 
 // Pages publiques
 if(view==='landing')return<LandingPage onGoLogin={()=>setView('login')} onGoRegister={()=>setView('register')}/>;

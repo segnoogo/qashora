@@ -632,13 +632,13 @@ return(<div className="min-h-screen flex items-center justify-center relative ov
 };
 
 // ===== SIDEBAR RESPONSIVE =====
-const Side=({page,nav,user,logout,isOpen,toggle,isSuperAdmin})=>{
+const Side=({page,nav,user,logout,isOpen,toggle,isSuperAdmin,orgName})=>{
 const items=[{id:'dashboard',label:'Tableau de bord',icon:'📊'},{id:'transactions',label:'Transactions',icon:'📋'},{id:'soldes',label:'Soldes',icon:'🏦'},...(user?.role==='Admin'?[{id:'users',label:'Utilisateurs',icon:'👥'},{id:'corbeille',label:'Corbeille',icon:'🗑️'}]:[]),{id:'abonnement',label:'Abonnement',icon:'💎'},{id:'settings',label:'Paramètres',icon:'⚙️'},...(isSuperAdmin?[{id:'admin',label:'Admin',icon:'🛡️'}]:[])];
 const roleInfo=ROLES[user?.role]||ROLES.User;
-return(<><div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-900/95 backdrop-blur-xl border-b border-surface-800 z-50 flex items-center justify-between px-4"><button onClick={toggle} className="p-2 hover:bg-surface-800 rounded-lg text-xl">☰</button><div className="flex items-center gap-2"><div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center text-white font-bold">Q</div><span className="font-bold text-surface-100">Qashora</span></div><div className="w-8"/></div>
+return(<><div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-900/95 backdrop-blur-xl border-b border-surface-800 z-50 flex items-center justify-between px-4"><button onClick={toggle} className="p-2 hover:bg-surface-800 rounded-lg text-xl">☰</button><div className="flex items-center gap-2"><div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">{orgName?.charAt(0)||'Q'}</div><span className="font-bold text-surface-100 truncate max-w-[150px]">{orgName||'Qashora'}</span></div><div className="w-8"/></div>
 {isOpen&&<div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={toggle}/>}
 <aside className={cn('sidebar fixed left-0 top-0 h-screen w-64 bg-surface-900/95 backdrop-blur-xl border-r border-surface-800 flex flex-col z-50 transition-transform md:translate-x-0',isOpen?'open':'')}>
-<div className="p-6 border-b border-surface-800"><div className="flex items-center gap-3"><div className="w-11 h-11 gradient-primary rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg animate-glow">Q</div><div><h1 className="text-xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">Qashora</h1><p className="text-xs text-surface-500">v3.0</p></div></div></div>
+<div className="p-5 border-b border-surface-800"><div className="flex items-center gap-3"><div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg animate-glow">{orgName?.charAt(0)||'Q'}</div><div className="flex-1 min-w-0"><h1 className="text-lg font-bold text-surface-100 truncate" title={orgName}>{orgName||'Mon Entreprise'}</h1><p className="text-xs text-surface-500">Propulsé par <span className="text-primary-400">Qashora</span></p></div></div></div>
 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">{items.map(i=>(<button key={i.id} onClick={()=>{nav(i.id);toggle?.();}} className={cn('nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative',page===i.id?'bg-gradient-to-r from-primary-600/20 to-secondary-600/20 text-primary-400 border border-primary-500/30':'text-surface-400 hover:bg-surface-800 hover:text-surface-200')}><span className="text-lg">{i.icon}</span><span className="font-medium">{i.label}</span></button>))}</nav>
 <div className="p-4 border-t border-surface-800"><div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold">{user?.username?.charAt(0).toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium text-surface-200 truncate">{user?.username}</p><p className="text-xs text-surface-500 flex items-center gap-1"><span>{roleInfo.icon}</span>{roleInfo.label}</p></div></div><Button variant="ghost" className="w-full justify-start" onClick={logout} icon="🚪">Déconnexion</Button></div></aside></>);};
 
@@ -715,29 +715,22 @@ return 'Solde: '+formatNumber(num);
 return cell;
 }):null;
 
-// Titre avec style
-doc.setFontSize(18);
-doc.setTextColor(217,70,239);
-doc.text(title,14,18);
-
-// Nom de l'organisation
+// Nom de l'organisation en haut à droite
 if(orgName){
-doc.setFontSize(12);
-doc.setTextColor(80,80,80);
-doc.text(orgName,14,26);
+doc.setFontSize(14);
+doc.setTextColor(217,70,239);
+doc.text(orgName,280,15,{align:'right'});
 }
+
+// Titre du rapport
+doc.setFontSize(18);
+doc.setTextColor(50,50,50);
+doc.text(title,14,18);
 
 // Sous-titre
 doc.setFontSize(9);
 doc.setTextColor(120,120,120);
-doc.text('Généré le '+new Date().toLocaleDateString('fr-FR')+' à '+new Date().toLocaleTimeString('fr-FR'),14,orgName?33:26);
-
-// Logo Qashora
-doc.setFillColor(217,70,239);
-doc.roundedRect(250,8,30,14,3,3,'F');
-doc.setTextColor(255,255,255);
-doc.setFontSize(11);
-doc.text('Qashora',255,17);
+doc.text('Généré le '+new Date().toLocaleDateString('fr-FR')+' à '+new Date().toLocaleTimeString('fr-FR'),14,26);
 
 // Configuration des colonnes avec alignement
 const colStyles={};
@@ -756,7 +749,7 @@ doc.autoTable({
 head:[headers],
 body:formattedRows,
 foot:formattedTotals?[formattedTotals]:[],
-startY:orgName?38:32,
+startY:32,
 theme:'grid',
 headStyles:{
 fillColor:[217,70,239],
@@ -1477,7 +1470,7 @@ if(data.loading)return(<div className="min-h-screen flex items-center justify-ce
 if(data.error)return(<div className="min-h-screen flex items-center justify-center p-4"><Alert type="error" message={'Erreur: '+data.error}/></div>);
 
 return(<div className="min-h-screen bg-surface-950">
-<Side page={page} nav={setPage} user={user} logout={handleLogout} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin}/>
+<Side page={page} nav={setPage} user={user} logout={handleLogout} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin} orgName={data.orgName}/>
 <main className="main-content md:ml-64 p-4 md:p-8">
 {page==='dashboard'&&<Dashboard trans={data.trans} banques={data.banques} onNavigate={setPage}/>}
 {page==='transactions'&&<Transactions data={data} user={user} showToast={showToast}/>}

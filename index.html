@@ -928,67 +928,270 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 
 // ===== PAGE ADMIN =====
 const AdminPage=({showToast,isSuperAdmin})=>{
-const[users,setUsers]=useState([]);
+const[organisations,setOrganisations]=useState([]);
 const[abonnements,setAbonnements]=useState([]);
 const[loading,setLoading]=useState(true);
 const[saving,setSaving]=useState(false);
 const[showModal,setShowModal]=useState(false);
-const[selectedUser,setSelectedUser]=useState(null);
+const[selectedOrg,setSelectedOrg]=useState(null);
 const[searchTerm,setSearchTerm]=useState('');
 const[form,setForm]=useState({plan:'trial',date_fin:'',montant:'',mode_paiement:'wave'});
 const[message,setMessage]=useState({type:'',text:''});
 
 useEffect(()=>{loadData();},[]);
-const loadData=async()=>{setLoading(true);try{const{data:u}=await supabase.from('utilisateurs').select('*').order('created_at',{ascending:false});const{data:a}=await supabase.from('abonnements').select('*');setUsers(u||[]);setAbonnements(a||[]);}catch(e){console.error(e);}setLoading(false);};
-const getAbonnement=(userId)=>abonnements.find(a=>a.user_id===userId);
+
+const loadData=async()=>{
+setLoading(true);
+try{
+// Charger organisations avec leurs utilisateurs
+const{data:orgs}=await supabase.from('organisations').select('*').order('created_at',{ascending:false});
+const{data:users}=await supabase.from('utilisateurs').select('*');
+const{data:abos}=await supabase.from('abonnements').select('*');
+
+// Enrichir les organisations avec le nombre d'utilisateurs et l'admin
+const enrichedOrgs=(orgs||[]).map(org=>{
+const orgUsers=(users||[]).filter(u=>u.organisation_id===org.id);
+const admin=orgUsers.find(u=>u.role==='Admin')||orgUsers[0];
+return{...org,usersCount:orgUsers.length,adminEmail:admin?.email,adminName:admin?.username};
+});
+
+setOrganisations(enrichedOrgs);
+setAbonnements(abos||[]);
+}catch(e){console.error(e);}
+setLoading(false);
+};
+
+const getAbonnement=(orgId)=>abonnements.find(a=>a.organisation_id===orgId);
 const getJoursRestants=(dateFin)=>{if(!dateFin)return 0;return Math.ceil((new Date(dateFin)-new Date())/(1000*60*60*24));};
-const openEditModal=(user)=>{const abo=getAbonnement(user.id);setSelectedUser(user);setForm({plan:abo?.plan||'trial',date_fin:abo?.date_fin?abo.date_fin.split('T')[0]:'',montant:abo?.montant?.toString()||'',mode_paiement:abo?.mode_paiement||'wave'});setShowModal(true);};
 
-const handleSave=async()=>{if(!selectedUser)return;setSaving(true);setMessage({type:'',text:''});try{const abo=getAbonnement(selectedUser.id);const aboData={user_id:selectedUser.id,plan:form.plan,statut:'actif',date_debut:new Date().toISOString(),date_fin:form.date_fin?new Date(form.date_fin).toISOString():null,montant:parseInt(form.montant)||PLANS[form.plan].prix,mode_paiement:form.mode_paiement};
-if(abo?.id){await supabase.from('abonnements').update(aboData).eq('id',abo.id);}else{await supabase.from('abonnements').insert([aboData]);}
-setMessage({type:'success',text:`Plan ${form.plan} activé!`});await loadData();setTimeout(()=>{setShowModal(false);setMessage({type:'',text:''});},1500);}catch(e){setMessage({type:'error',text:'Erreur: '+e.message});}setSaving(false);};
+const openEditModal=(org)=>{
+const abo=getAbonnement(org.id);
+setSelectedOrg(org);
+setForm({
+plan:abo?.plan||'trial',
+date_fin:abo?.date_fin?abo.date_fin.split('T')[0]:'',
+montant:abo?.montant?.toString()||'',
+mode_paiement:abo?.mode_paiement||'wave'
+});
+setShowModal(true);
+};
 
-const quickActivate=async(user,plan,months=1)=>{setSaving(true);try{const dateFin=new Date();dateFin.setMonth(dateFin.getMonth()+months);const abo=getAbonnement(user.id);const aboData={user_id:user.id,plan,statut:'actif',date_debut:new Date().toISOString(),date_fin:dateFin.toISOString(),montant:PLANS[plan].prix,mode_paiement:'manual'};
-if(abo?.id){await supabase.from('abonnements').update(aboData).eq('id',abo.id);}else{await supabase.from('abonnements').insert([aboData]);}
-await loadData();showToast?.(`${plan} activé pour ${user.username}`,'success');}catch(e){showToast?.('Erreur','error');}setSaving(false);};
+const handleSave=async()=>{
+if(!selectedOrg)return;
+setSaving(true);
+setMessage({type:'',text:''});
+try{
+const abo=getAbonnement(selectedOrg.id);
+const aboData={
+organisation_id:selectedOrg.id,
+plan:form.plan,
+statut:'actif',
+date_debut:new Date().toISOString(),
+date_fin:form.date_fin?new Date(form.date_fin).toISOString():null,
+montant:parseInt(form.montant)||PLANS[form.plan].prix,
+mode_paiement:form.mode_paiement
+};
 
-const filteredUsers=users.filter(u=>u.username?.toLowerCase().includes(searchTerm.toLowerCase())||u.email?.toLowerCase().includes(searchTerm.toLowerCase()));
-const stats={total:users.length,trial:users.filter(u=>(getAbonnement(u.id)?.plan||'trial')==='trial').length,standard:users.filter(u=>getAbonnement(u.id)?.plan==='standard').length,premium:users.filter(u=>getAbonnement(u.id)?.plan==='premium').length};
+if(abo?.id){
+await supabase.from('abonnements').update(aboData).eq('id',abo.id);
+}else{
+await supabase.from('abonnements').insert([aboData]);
+}
 
-if(!isSuperAdmin)return(<div className="flex items-center justify-center min-h-[60vh] pt-16 md:pt-0"><div className="glass rounded-2xl p-8 text-center"><span className="text-6xl">🔒</span><h2 className="text-xl font-bold text-surface-100 mt-4">Accès Refusé</h2></div></div>);
-if(loading)return<div className="flex justify-center py-20 pt-16 md:pt-0"><Loader text="Chargement..."/></div>;
+setMessage({type:'success',text:`Plan ${PLANS[form.plan].nom} activé pour ${selectedOrg.nom}!`});
+await loadData();
+setTimeout(()=>{setShowModal(false);setMessage({type:'',text:''});},1500);
+}catch(e){
+setMessage({type:'error',text:'Erreur: '+e.message});
+}
+setSaving(false);
+};
+
+const quickActivate=async(org,plan,months=1)=>{
+setSaving(true);
+try{
+const dateFin=new Date();
+dateFin.setMonth(dateFin.getMonth()+months);
+const abo=getAbonnement(org.id);
+const aboData={
+organisation_id:org.id,
+plan,
+statut:'actif',
+date_debut:new Date().toISOString(),
+date_fin:dateFin.toISOString(),
+montant:PLANS[plan].prix*months,
+mode_paiement:'manual'
+};
+
+if(abo?.id){
+await supabase.from('abonnements').update(aboData).eq('id',abo.id);
+}else{
+await supabase.from('abonnements').insert([aboData]);
+}
+
+await loadData();
+showToast?.(`${PLANS[plan].nom} activé pour ${org.nom} (${months} mois)`,'success');
+}catch(e){
+showToast?.('Erreur: '+e.message,'error');
+}
+setSaving(false);
+};
+
+const deleteAbonnement=async(org)=>{
+if(!confirm(`Supprimer l'abonnement de ${org.nom} ? L'organisation passera en Essai.`))return;
+try{
+const abo=getAbonnement(org.id);
+if(abo?.id){
+await supabase.from('abonnements').delete().eq('id',abo.id);
+await loadData();
+showToast?.(`Abonnement supprimé pour ${org.nom}`,'success');
+}
+}catch(e){showToast?.('Erreur','error');}
+};
+
+const filteredOrgs=organisations.filter(o=>
+o.nom?.toLowerCase().includes(searchTerm.toLowerCase())||
+o.adminEmail?.toLowerCase().includes(searchTerm.toLowerCase())||
+o.adminName?.toLowerCase().includes(searchTerm.toLowerCase())
+);
+
+const stats={
+total:organisations.length,
+trial:organisations.filter(o=>(getAbonnement(o.id)?.plan||'trial')==='trial').length,
+standard:organisations.filter(o=>getAbonnement(o.id)?.plan==='standard').length,
+premium:organisations.filter(o=>getAbonnement(o.id)?.plan==='premium').length
+};
+
+if(!isSuperAdmin)return(<div className="flex items-center justify-center min-h-[60vh] pt-16 md:pt-0"><div className="glass rounded-2xl p-8 text-center"><span className="text-6xl">🔒</span><h2 className="text-xl font-bold text-surface-100 mt-4">Accès Refusé</h2><p className="text-surface-400 mt-2">Réservé aux super admins</p></div></div>);
+if(loading)return<div className="flex justify-center py-20 pt-16 md:pt-0"><Loader text="Chargement des organisations..."/></div>;
 
 return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
-<div className="flex justify-between items-center"><div><h1 className="text-2xl font-bold text-surface-100">🛡️ Administration</h1><p className="text-surface-400 mt-1">Gestion des abonnements</p></div><Button onClick={loadData} variant="secondary" icon="🔄" size="sm">Actualiser</Button></div>
+<div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div><h1 className="text-2xl font-bold text-surface-100">🛡️ Administration</h1><p className="text-surface-400 mt-1">Gestion des organisations et abonnements</p></div>
+<Button onClick={loadData} variant="secondary" icon="🔄" size="sm">Actualiser</Button>
+</div>
 
 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-<StatCard icon="👥" label="Total" value={stats.total} gradient="gradient-gray"/>
+<StatCard icon="🏢" label="Organisations" value={stats.total} gradient="gradient-gray"/>
 <StatCard icon="🎁" label="Essai" value={stats.trial} gradient="gradient-warning"/>
 <StatCard icon="⭐" label="Standard" value={stats.standard} gradient="gradient-secondary"/>
 <StatCard icon="👑" label="Premium" value={stats.premium} gradient="gradient-primary"/>
 </div>
 
-<div className="glass rounded-xl p-4"><Input label="🔍 Rechercher" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Nom, email..."/></div>
+<div className="glass rounded-xl p-4">
+<Input label="🔍 Rechercher" value={searchTerm} onChange={e=>setSearchTerm(e.target.value)} placeholder="Organisation, email admin..."/>
+</div>
 
-<div className="glass rounded-xl overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-surface-800"><tr className="text-left text-xs text-surface-400"><th className="px-4 py-3">Utilisateur</th><th className="px-4 py-3">Email</th><th className="px-4 py-3 text-center">Plan</th><th className="px-4 py-3 text-center">Expire</th><th className="px-4 py-3 text-right">Actions</th></tr></thead>
-<tbody className="divide-y divide-surface-800">{filteredUsers.map(user=>{const abo=getAbonnement(user.id);const plan=abo?.plan||'trial';const jours=getJoursRestants(abo?.date_fin);const isExpired=jours<=0;
-return(<tr key={user.id} className="table-row"><td className="px-4 py-3"><div className="flex items-center gap-3"><div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center text-white font-bold">{user.username?.charAt(0)||'?'}</div><span className="font-bold text-sm text-surface-200">{user.username}</span></div></td>
-<td className="px-4 py-3 text-surface-400 text-sm">{user.email||'-'}</td>
-<td className="px-4 py-3 text-center"><Badge variant={plan==='premium'?'primary':plan==='standard'?'info':'default'}>{PLANS[plan]?.icon} {PLANS[plan]?.nom}</Badge></td>
-<td className="px-4 py-3 text-center">{abo?.date_fin?<span className={cn('text-sm font-bold',isExpired?'text-red-400':'text-surface-300')}>{jours>0?`${jours}j`:'Expiré'}</span>:<span className="text-surface-500">-</span>}</td>
-<td className="px-4 py-3"><div className="flex justify-end gap-1"><button onClick={()=>quickActivate(user,'standard',1)} disabled={saving} className="px-2 py-1 text-xs font-bold bg-secondary-500/20 text-secondary-400 rounded-lg hover:bg-secondary-500/30">⭐</button><button onClick={()=>quickActivate(user,'premium',1)} disabled={saving} className="px-2 py-1 text-xs font-bold bg-primary-500/20 text-primary-400 rounded-lg hover:bg-primary-500/30">👑</button><button onClick={()=>openEditModal(user)} className="px-2 py-1 text-xs font-bold bg-surface-700 text-surface-300 rounded-lg hover:bg-surface-600">✏️</button></div></td></tr>);})}</tbody></table></div></div>
+<div className="glass rounded-xl overflow-hidden">
+<div className="overflow-x-auto">
+<table className="w-full text-sm">
+<thead className="bg-surface-800">
+<tr className="text-left text-xs text-surface-400">
+<th className="px-4 py-3">Organisation</th>
+<th className="px-4 py-3">Admin</th>
+<th className="px-4 py-3 text-center">Users</th>
+<th className="px-4 py-3 text-center">Plan</th>
+<th className="px-4 py-3 text-center">Expire</th>
+<th className="px-4 py-3 text-right">Actions</th>
+</tr>
+</thead>
+<tbody className="divide-y divide-surface-800">
+{filteredOrgs.map(org=>{
+const abo=getAbonnement(org.id);
+const plan=abo?.plan||'trial';
+const jours=getJoursRestants(abo?.date_fin);
+const isExpired=jours<=0&&plan!=='trial';
 
-<Modal isOpen={showModal} onClose={()=>setShowModal(false)} title={`✏️ ${selectedUser?.username}`} size="sm">
+return(<tr key={org.id} className="table-row">
+<td className="px-4 py-3">
+<div className="flex items-center gap-3">
+<div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center text-white font-bold">{org.nom?.charAt(0)||'?'}</div>
+<div>
+<span className="font-bold text-sm text-surface-200">{org.nom}</span>
+<p className="text-xs text-surface-500">{fmtD(org.created_at)}</p>
+</div>
+</div>
+</td>
+<td className="px-4 py-3">
+<p className="text-surface-300 text-sm">{org.adminName||'-'}</p>
+<p className="text-surface-500 text-xs">{org.adminEmail||'-'}</p>
+</td>
+<td className="px-4 py-3 text-center">
+<span className="px-2 py-1 bg-surface-700 rounded-lg text-surface-300 text-xs font-bold">{org.usersCount}</span>
+</td>
+<td className="px-4 py-3 text-center">
+<Badge variant={plan==='premium'?'info':plan==='standard'?'success':'warning'}>
+{PLANS[plan]?.icon} {PLANS[plan]?.nom}
+</Badge>
+</td>
+<td className="px-4 py-3 text-center">
+{abo?.date_fin?
+<span className={cn('text-sm font-bold',isExpired?'text-red-400':jours<=7?'text-amber-400':'text-emerald-400')}>
+{isExpired?'Expiré':`${jours}j`}
+</span>
+:<span className="text-surface-500">-</span>}
+</td>
+<td className="px-4 py-3">
+<div className="flex justify-end gap-1">
+<button onClick={()=>quickActivate(org,'standard',1)} disabled={saving} title="Standard 1 mois" className="px-2 py-1 text-xs font-bold bg-secondary-500/20 text-secondary-400 rounded-lg hover:bg-secondary-500/30 transition-colors">⭐</button>
+<button onClick={()=>quickActivate(org,'premium',1)} disabled={saving} title="Premium 1 mois" className="px-2 py-1 text-xs font-bold bg-primary-500/20 text-primary-400 rounded-lg hover:bg-primary-500/30 transition-colors">👑</button>
+<button onClick={()=>openEditModal(org)} title="Modifier" className="px-2 py-1 text-xs font-bold bg-surface-700 text-surface-300 rounded-lg hover:bg-surface-600 transition-colors">✏️</button>
+<button onClick={()=>deleteAbonnement(org)} title="Supprimer abo" className="px-2 py-1 text-xs font-bold bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors">🗑️</button>
+</div>
+</td>
+</tr>);
+})}
+</tbody>
+</table>
+</div>
+{filteredOrgs.length===0&&<div className="text-center py-8 text-surface-500">Aucune organisation trouvée</div>}
+</div>
+
+<Modal isOpen={showModal} onClose={()=>setShowModal(false)} title={`🏢 ${selectedOrg?.nom}`} size="sm">
 <div className="space-y-4">
 {message.text&&<Alert type={message.type} message={message.text}/>}
-<Select label="Plan" value={form.plan} onChange={e=>setForm({...form,plan:e.target.value,montant:PLANS[e.target.value].prix.toString()})} options={[{value:'trial',label:'🎁 Essai'},{value:'standard',label:'⭐ Standard - 5000 F'},{value:'premium',label:'👑 Premium - 15000 F'}]}/>
+
+<div className="p-3 bg-surface-800 rounded-xl">
+<p className="text-xs text-surface-500">Organisation</p>
+<p className="font-bold text-surface-200">{selectedOrg?.nom}</p>
+<p className="text-xs text-surface-400 mt-1">Admin: {selectedOrg?.adminEmail}</p>
+</div>
+
+<Select label="Plan" value={form.plan} onChange={e=>setForm({...form,plan:e.target.value,montant:PLANS[e.target.value].prix.toString()})} options={[
+{value:'trial',label:'🎁 Essai Gratuit'},
+{value:'standard',label:'⭐ Standard - 5 000 FCFA/mois'},
+{value:'premium',label:'👑 Premium - 15 000 FCFA/mois'}
+]}/>
+
 <Input label="Date de fin" type="date" value={form.date_fin} onChange={e=>setForm({...form,date_fin:e.target.value})}/>
-<div className="grid grid-cols-2 gap-3"><Input label="Montant" type="number" value={form.montant} onChange={e=>setForm({...form,montant:e.target.value})}/><Select label="Paiement" value={form.mode_paiement} onChange={e=>setForm({...form,mode_paiement:e.target.value})} options={[{value:'wave',label:'Wave'},{value:'orange_money',label:'OM'},{value:'bank',label:'Virement'},{value:'manual',label:'Manuel'}]}/></div>
-<div><p className="text-xs text-surface-500 mb-2">⚡ Raccourcis</p><div className="flex gap-2">{[1,3,6,12].map(m=><button key={m} onClick={()=>{const d=new Date();d.setMonth(d.getMonth()+m);setForm({...form,date_fin:d.toISOString().split('T')[0]});}} className="px-3 py-1 text-xs font-bold bg-surface-700 text-surface-300 rounded-lg hover:bg-surface-600">{m}m</button>)}</div></div>
-<div className="flex justify-end gap-3 pt-4 border-t border-surface-700"><Button variant="secondary" onClick={()=>setShowModal(false)}>Annuler</Button><Button onClick={handleSave} loading={saving}>Enregistrer</Button></div>
+
+<div className="grid grid-cols-2 gap-3">
+<Input label="Montant payé (FCFA)" type="number" value={form.montant} onChange={e=>setForm({...form,montant:e.target.value})}/>
+<Select label="Mode paiement" value={form.mode_paiement} onChange={e=>setForm({...form,mode_paiement:e.target.value})} options={[
+{value:'wave',label:'Wave'},
+{value:'orange_money',label:'Orange Money'},
+{value:'free_money',label:'Free Money'},
+{value:'bank',label:'Virement bancaire'},
+{value:'cash',label:'Espèces'},
+{value:'manual',label:'Manuel'}
+]}/>
+</div>
+
+<div>
+<p className="text-xs text-surface-500 mb-2">⚡ Durée rapide</p>
+<div className="flex gap-2 flex-wrap">
+{[1,3,6,12].map(m=><button key={m} onClick={()=>{const d=new Date();d.setMonth(d.getMonth()+m);setForm({...form,date_fin:d.toISOString().split('T')[0],montant:(PLANS[form.plan].prix*m).toString()});}} className="px-3 py-1.5 text-xs font-bold bg-surface-700 text-surface-300 rounded-lg hover:bg-surface-600 transition-colors">{m} mois</button>)}
+</div>
+</div>
+
+<div className="flex justify-end gap-3 pt-4 border-t border-surface-700">
+<Button variant="secondary" onClick={()=>setShowModal(false)}>Annuler</Button>
+<Button onClick={handleSave} loading={saving}>💾 Enregistrer</Button>
+</div>
 </div>
 </Modal>
-</div>);};
+</div>);
+};
 
 // ===== APPLICATION PRINCIPALE =====
 const App=()=>{

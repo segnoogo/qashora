@@ -184,7 +184,7 @@ Se connecter
 };
 
 // ===== PAGE D'INSCRIPTION =====
-const RegisterPage=({onGoLogin,onRegisterSuccess})=>{
+const RegisterPage=({onGoLogin,onNeedConfirmation})=>{
 const[step,setStep]=useState(1);
 const[loading,setLoading]=useState(false);
 const[error,setError]=useState('');
@@ -208,7 +208,7 @@ setError('');return true;
 const validateStep2=()=>{
 if(!form.nom.trim()||!form.prenom.trim()){setError('Nom et prénom sont requis');return false;}
 if(!form.email.trim()||!form.email.includes('@')){setError('Email invalide');return false;}
-if(form.password.length<4){setError('Mot de passe: minimum 4 caractères');return false;}
+if(form.password.length<6){setError('Mot de passe: minimum 6 caractères');return false;}
 if(form.password!==form.confirmPassword){setError('Les mots de passe ne correspondent pas');return false;}
 setError('');return true;
 };
@@ -217,30 +217,41 @@ const handleSubmit=async()=>{
 if(!validateStep2())return;
 setLoading(true);setError('');
 try{
-// Vérifier si l'email existe déjà
-const{data:existingUser}=await supabase.from('utilisateurs').select('id').eq('email',form.email).single();
-if(existingUser){setError('Cet email est déjà utilisé');setLoading(false);return;}
+// 1. Créer le compte avec Supabase Auth
+const{data:authData,error:authError}=await supabase.auth.signUp({
+email:form.email.toLowerCase().trim(),
+password:form.password,
+options:{
+data:{
+prenom:form.prenom,
+nom:form.nom,
+organisation:form.organisation
+}
+}
+});
+if(authError)throw authError;
 
-// Créer l'organisation
+// 2. Créer l'organisation
 const{data:org,error:orgError}=await supabase.from('organisations').insert([{
 nom:form.organisation.trim(),
 created_at:new Date().toISOString()
 }]).select().single();
 if(orgError)throw orgError;
 
-// Créer l'utilisateur admin
+// 3. Créer l'utilisateur dans notre table
 const{data:user,error:userError}=await supabase.from('utilisateurs').insert([{
 organisation_id:org.id,
+auth_id:authData.user?.id,
 username:`${form.prenom} ${form.nom}`,
 email:form.email.toLowerCase().trim(),
-password:form.password,
 role:'Admin',
 actif:true,
+email_confirmed:false,
 created_at:new Date().toISOString()
 }]).select().single();
 if(userError)throw userError;
 
-// Créer l'abonnement essai (14 jours)
+// 4. Créer l'abonnement essai (14 jours)
 const dateFin=new Date();dateFin.setDate(dateFin.getDate()+14);
 await supabase.from('abonnements').insert([{
 organisation_id:org.id,
@@ -252,11 +263,29 @@ date_fin:dateFin.toISOString(),
 montant:0
 }]);
 
-// Succès!
-onRegisterSuccess(user);
+// 5. Créer les paramètres par défaut pour cette organisation
+const defaultParams=[
+{organisation_id:org.id,type:'pays',valeur:'Sénégal'},
+{organisation_id:org.id,type:'pays',valeur:'Côte d\'Ivoire'},
+{organisation_id:org.id,type:'pays',valeur:'Mali'},
+{organisation_id:org.id,type:'nature',valeur:'Virement'},
+{organisation_id:org.id,type:'nature',valeur:'Chèque'},
+{organisation_id:org.id,type:'nature',valeur:'Espèces'},
+{organisation_id:org.id,type:'statut',valeur:'Validé'},
+{organisation_id:org.id,type:'statut',valeur:'En attente'},
+{organisation_id:org.id,type:'statut',valeur:'Annulé'}
+];
+await supabase.from('parametres').insert(defaultParams);
+
+// Succès - Afficher page confirmation email
+onNeedConfirmation(form.email);
 }catch(e){
 console.error(e);
+if(e.message?.includes('already registered')){
+setError('Cet email est déjà utilisé');
+}else{
 setError(e.message||'Erreur lors de l\'inscription');
+}
 }
 setLoading(false);
 };
@@ -332,6 +361,57 @@ Déjà inscrit ? <button onClick={onGoLogin} className="text-primary-400 font-bo
 </div>);
 };
 
+// ===== PAGE CONFIRMATION EMAIL =====
+const ConfirmEmailPage=({email,onGoLogin})=>{
+const[resending,setResending]=useState(false);
+const[resent,setResent]=useState(false);
+
+const handleResend=async()=>{
+setResending(true);
+try{
+await supabase.auth.resend({type:'signup',email});
+setResent(true);
+setTimeout(()=>setResent(false),5000);
+}catch(e){console.error(e);}
+setResending(false);
+};
+
+return(<div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
+<div className="w-full max-w-md text-center">
+<div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+<span className="text-5xl">📧</span>
+</div>
+<h1 className="text-2xl font-bold text-white mb-4">Vérifiez votre email</h1>
+<p className="text-surface-400 mb-2">Un email de confirmation a été envoyé à :</p>
+<p className="text-primary-400 font-bold mb-6">{email}</p>
+<div className="glass rounded-2xl p-6 text-left space-y-4">
+<div className="flex items-start gap-3">
+<span className="text-xl">1️⃣</span>
+<p className="text-surface-300">Ouvrez votre boîte email</p>
+</div>
+<div className="flex items-start gap-3">
+<span className="text-xl">2️⃣</span>
+<p className="text-surface-300">Cliquez sur le lien de confirmation</p>
+</div>
+<div className="flex items-start gap-3">
+<span className="text-xl">3️⃣</span>
+<p className="text-surface-300">Revenez ici pour vous connecter</p>
+</div>
+</div>
+<div className="mt-6 space-y-3">
+{resent&&<p className="text-emerald-400 text-sm">✅ Email renvoyé !</p>}
+<button onClick={handleResend} disabled={resending} className="text-surface-400 hover:text-primary-400 text-sm underline">
+{resending?'Envoi en cours...':'Renvoyer l\'email'}
+</button>
+</div>
+<button onClick={onGoLogin} className="mt-8 px-6 py-3 gradient-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
+J'ai confirmé mon email → Connexion
+</button>
+<p className="text-surface-500 text-xs mt-4">Vérifiez aussi vos spams</p>
+</div>
+</div>);
+};
+
 // ===== UTILITAIRES =====
 const fmt=n=>n?new Intl.NumberFormat('fr-FR').format(Math.round(n)):'0';
 const fmtD=s=>s?new Date(s).toLocaleDateString('fr-FR'):'';
@@ -368,7 +448,7 @@ const ChartC=({type,data,title,options={}})=>{const ref=useRef(null);const inst=
 const Toast=({message,type='info',onClose})=>{useEffect(()=>{const t=setTimeout(onClose,4000);return()=>clearTimeout(t);},[onClose]);const bg={info:'bg-blue-600',success:'bg-emerald-600',error:'bg-red-600',warning:'bg-amber-600'};return(<div className={cn('fixed bottom-4 right-4 z-50 px-4 py-3 rounded-xl text-white shadow-2xl animate-slide-in flex items-center gap-3',bg[type])}><span>{message}</span><button onClick={onClose} className="hover:opacity-70">✕</button></div>);};
 
 // ===== HOOK DONNÉES SUPABASE =====
-const useData=()=>{
+const useData=(organisationId)=>{
     const[banques,setBanques]=useState([]);
     const[trans,setTrans]=useState([]);
     const[users,setUsers]=useState([]);
@@ -378,14 +458,15 @@ const useData=()=>{
     const[error,setError]=useState(null);
 
     const loadAll=async()=>{
+        if(!organisationId){setLoading(false);return;}
         setLoading(true);
         try{
             const[bRes,tRes,uRes,pRes,aRes]=await Promise.all([
-                supabase.from('banques').select('*').eq('actif',true).order('nom'),
-                supabase.from('transactions').select('*').order('date',{ascending:false}),
-                supabase.from('utilisateurs').select('*').eq('actif',true),
-                supabase.from('parametres').select('*').eq('actif',true).order('ordre'),
-                supabase.from('abonnements').select('*').order('created_at',{ascending:false}).limit(1)
+                supabase.from('banques').select('*').eq('organisation_id',organisationId).eq('actif',true).order('nom'),
+                supabase.from('transactions').select('*').eq('organisation_id',organisationId).order('date',{ascending:false}),
+                supabase.from('utilisateurs').select('*').eq('organisation_id',organisationId).eq('actif',true),
+                supabase.from('parametres').select('*').eq('organisation_id',organisationId).eq('actif',true).order('ordre'),
+                supabase.from('abonnements').select('*').eq('organisation_id',organisationId).order('created_at',{ascending:false}).limit(1)
             ]);
             if(bRes.error)throw bRes.error;
             if(tRes.error)throw tRes.error;
@@ -404,41 +485,41 @@ const useData=()=>{
         setLoading(false);
     };
 
-    useEffect(()=>{loadAll();},[]);
+    useEffect(()=>{loadAll();},[organisationId]);
 
-    // BANQUES
-    const addBanque=async(d)=>{const{data,error}=await supabase.from('banques').insert([{nom:d.nom,numero_compte:d.numeroCompte,gestionnaire:d.gestionnaire,contact:d.contact,pays:d.pays,solde_ouverture:d.soldeOuverture||0}]).select();if(error)throw error;await loadAll();return data;};
-    const updateBanque=async(id,d)=>{const{error}=await supabase.from('banques').update({nom:d.nom,numero_compte:d.numeroCompte,gestionnaire:d.gestionnaire,contact:d.contact,pays:d.pays,solde_ouverture:d.soldeOuverture||0}).eq('id',id);if(error)throw error;await loadAll();};
-    const deleteBanque=async(id)=>{const{error}=await supabase.from('banques').update({actif:false}).eq('id',id);if(error)throw error;await loadAll();};
+    // BANQUES - avec organisation_id
+    const addBanque=async(d)=>{const{data,error}=await supabase.from('banques').insert([{organisation_id:organisationId,nom:d.nom,numero_compte:d.numeroCompte,gestionnaire:d.gestionnaire,contact:d.contact,pays:d.pays,solde_ouverture:d.soldeOuverture||0}]).select();if(error)throw error;await loadAll();return data;};
+    const updateBanque=async(id,d)=>{const{error}=await supabase.from('banques').update({nom:d.nom,numero_compte:d.numeroCompte,gestionnaire:d.gestionnaire,contact:d.contact,pays:d.pays,solde_ouverture:d.soldeOuverture||0}).eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
+    const deleteBanque=async(id)=>{const{error}=await supabase.from('banques').update({actif:false}).eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
 
-    // TRANSACTIONS
-    const addTrans=async(d)=>{const{data,error}=await supabase.from('transactions').insert([{date:d.date,banque_id:d.banqueId,banque_nom:d.banqueNom,pays:d.pays,projet:d.projet,no_cheque:d.noCheque,demandeur:d.demandeur,section_demandeur:d.sectionDem,nature:d.nature,designation:d.designation,beneficiaire:d.beneficiaire,section_beneficiaire:d.sectionBen,debit:d.debit||0,credit:d.credit||0,centre_interet:d.centre,statut:d.statut,banque_debit:d.bDebit||0,banque_credit:d.bCredit||0,created_by:d.createdBy}]).select();if(error)throw error;await loadAll();return data;};
-    const updateTrans=async(id,d)=>{const{error}=await supabase.from('transactions').update({date:d.date,banque_id:d.banqueId,banque_nom:d.banqueNom,pays:d.pays,projet:d.projet,no_cheque:d.noCheque,demandeur:d.demandeur,section_demandeur:d.sectionDem,nature:d.nature,designation:d.designation,beneficiaire:d.beneficiaire,section_beneficiaire:d.sectionBen,debit:d.debit||0,credit:d.credit||0,centre_interet:d.centre,statut:d.statut,banque_debit:d.bDebit||0,banque_credit:d.bCredit||0}).eq('id',id);if(error)throw error;await loadAll();};
-    const deleteTrans=async(id,by)=>{const{error}=await supabase.from('transactions').update({deleted_at:new Date().toISOString(),deleted_by:by}).eq('id',id);if(error)throw error;await loadAll();};
-    const restoreTrans=async(id)=>{const{error}=await supabase.from('transactions').update({deleted_at:null,deleted_by:null}).eq('id',id);if(error)throw error;await loadAll();};
-    const permDeleteTrans=async(id)=>{const{error}=await supabase.from('transactions').delete().eq('id',id);if(error)throw error;await loadAll();};
+    // TRANSACTIONS - avec organisation_id
+    const addTrans=async(d)=>{const{data,error}=await supabase.from('transactions').insert([{organisation_id:organisationId,date:d.date,banque_id:d.banqueId,banque_nom:d.banqueNom,pays:d.pays,projet:d.projet,no_cheque:d.noCheque,demandeur:d.demandeur,section_demandeur:d.sectionDem,nature:d.nature,designation:d.designation,beneficiaire:d.beneficiaire,section_beneficiaire:d.sectionBen,debit:d.debit||0,credit:d.credit||0,centre_interet:d.centre,statut:d.statut,banque_debit:d.bDebit||0,banque_credit:d.bCredit||0,created_by:d.createdBy}]).select();if(error)throw error;await loadAll();return data;};
+    const updateTrans=async(id,d)=>{const{error}=await supabase.from('transactions').update({date:d.date,banque_id:d.banqueId,banque_nom:d.banqueNom,pays:d.pays,projet:d.projet,no_cheque:d.noCheque,demandeur:d.demandeur,section_demandeur:d.sectionDem,nature:d.nature,designation:d.designation,beneficiaire:d.beneficiaire,section_beneficiaire:d.sectionBen,debit:d.debit||0,credit:d.credit||0,centre_interet:d.centre,statut:d.statut,banque_debit:d.bDebit||0,banque_credit:d.bCredit||0}).eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
+    const deleteTrans=async(id,by)=>{const{error}=await supabase.from('transactions').update({deleted_at:new Date().toISOString(),deleted_by:by}).eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
+    const restoreTrans=async(id)=>{const{error}=await supabase.from('transactions').update({deleted_at:null,deleted_by:null}).eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
+    const permDeleteTrans=async(id)=>{const{error}=await supabase.from('transactions').delete().eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
 
-    // USERS
-    const addUser=async(d)=>{const{data,error}=await supabase.from('utilisateurs').insert([{username:d.username,email:d.email,role:d.role,password:d.password}]).select();if(error)throw error;await loadAll();return data;};
-    const updateUser=async(id,d)=>{const upd={username:d.username,email:d.email,role:d.role};if(d.password)upd.password=d.password;const{error}=await supabase.from('utilisateurs').update(upd).eq('id',id);if(error)throw error;await loadAll();};
-    const deleteUser=async(id)=>{const{error}=await supabase.from('utilisateurs').update({actif:false}).eq('id',id);if(error)throw error;await loadAll();};
-    const resetPassword=async(id,newPwd)=>{const{error}=await supabase.from('utilisateurs').update({password:newPwd}).eq('id',id);if(error)throw error;await loadAll();};
+    // USERS - avec organisation_id
+    const addUser=async(d)=>{const{data,error}=await supabase.from('utilisateurs').insert([{organisation_id:organisationId,username:d.username,email:d.email,role:d.role,password:d.password}]).select();if(error)throw error;await loadAll();return data;};
+    const updateUser=async(id,d)=>{const upd={username:d.username,email:d.email,role:d.role};if(d.password)upd.password=d.password;const{error}=await supabase.from('utilisateurs').update(upd).eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
+    const deleteUser=async(id)=>{const{error}=await supabase.from('utilisateurs').update({actif:false}).eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
+    const resetPassword=async(id,newPwd)=>{const{error}=await supabase.from('utilisateurs').update({password:newPwd}).eq('id',id).eq('organisation_id',organisationId);if(error)throw error;await loadAll();};
 
-    // PARAMETRES
+    // PARAMETRES - avec organisation_id
     const addParam=async(type,valeur)=>{
         const key=type==='nature'?'natures':type==='statut'?'statuts':'pays';
         const max=params[key]?.length||0;
-        const{error}=await supabase.from('parametres').insert([{type,valeur,ordre:max+1,actif:true}]);
+        const{error}=await supabase.from('parametres').insert([{organisation_id:organisationId,type,valeur,ordre:max+1,actif:true}]);
         if(error)throw error;
         await loadAll();
     };
     const updateParam=async(type,oldVal,newVal)=>{
-        const{error}=await supabase.from('parametres').update({valeur:newVal}).eq('type',type).eq('valeur',oldVal);
+        const{error}=await supabase.from('parametres').update({valeur:newVal}).eq('type',type).eq('valeur',oldVal).eq('organisation_id',organisationId);
         if(error)throw error;
         await loadAll();
     };
     const deleteParam=async(type,valeur)=>{
-        const{error}=await supabase.from('parametres').delete().eq('type',type).eq('valeur',valeur);
+        const{error}=await supabase.from('parametres').delete().eq('type',type).eq('valeur',valeur).eq('organisation_id',organisationId);
         if(error)throw error;
         await loadAll();
     };
@@ -454,14 +535,100 @@ const useData=()=>{
 
 // ===== PAGE LOGIN =====
 const Login=({onLogin,onGoRegister,onGoLanding})=>{
-const[u,setU]=useState('');const[p,setP]=useState('');const[e,setE]=useState('');const[loading,setLoading]=useState(false);const[users,setUsers]=useState([]);const[loadingData,setLoadingData]=useState(true);
-useEffect(()=>{const load=async()=>{const{data}=await supabase.from('utilisateurs').select('*').eq('actif',true);setUsers(data||[]);setLoadingData(false);};load();},[]);
-const go=async(ev)=>{ev.preventDefault();setE('');if(!u||!p){setE('Veuillez remplir tous les champs');return;}setLoading(true);await new Promise(r=>setTimeout(r,300));
-const user=users.find(x=>x.username?.toLowerCase()===u.toLowerCase()||x.email?.toLowerCase()===u.toLowerCase());
-if(user){const validPwd=user.password?user.password===p:(p===user.username.toLowerCase()+'123');if(validPwd){onLogin(user);}else{setE('Mot de passe incorrect');}}else{setE('Utilisateur non trouve');}
-setLoading(false);};
-if(loadingData)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Connexion..." size="lg"/></div>);
-return(<div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"><div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl"/><div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-secondary-500/20 rounded-full blur-3xl"/><div className="relative z-10 w-full max-w-md"><div className="glass rounded-3xl p-6 md:p-8 animate-fade-in"><div className="text-center mb-8"><div className="inline-flex items-center justify-center w-16 md:w-20 h-16 md:h-20 gradient-primary rounded-2xl mb-4 animate-glow text-white shadow-lg shadow-primary-500/30"><span className="text-2xl md:text-3xl font-bold">Q</span></div><h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">Qashora</h1><p className="text-surface-400 mt-2 text-sm md:text-base">Gestion de Tresorerie</p></div><form onSubmit={go} className="space-y-5">{e&&<Alert type="error" message={e}/>}<Input label="Email ou nom" value={u} onChange={ev=>setU(ev.target.value)} placeholder="votre@email.com" required/><Input label="Mot de passe" type="password" value={p} onChange={ev=>setP(ev.target.value)} placeholder="Votre mot de passe" required/><Button type="submit" className="w-full" size="lg" loading={loading}>Se connecter</Button></form><div className="mt-6 pt-6 border-t border-surface-700 text-center"><p className="text-surface-400 text-sm">Pas encore de compte ?</p><button onClick={onGoRegister} className="text-primary-400 font-bold hover:underline mt-1">Creer un compte</button></div></div><button onClick={onGoLanding} className="w-full text-center text-surface-500 text-sm mt-4 hover:text-surface-300">Retour</button></div></div>);
+const[email,setEmail]=useState('');
+const[password,setPassword]=useState('');
+const[error,setError]=useState('');
+const[loading,setLoading]=useState(false);
+
+const handleSubmit=async(ev)=>{
+ev.preventDefault();
+setError('');
+if(!email||!password){setError('Veuillez remplir tous les champs');return;}
+setLoading(true);
+
+try{
+// 1. Connexion avec Supabase Auth
+const{data:authData,error:authError}=await supabase.auth.signInWithPassword({
+email:email.toLowerCase().trim(),
+password
+});
+
+if(authError){
+if(authError.message.includes('Email not confirmed')){
+setError('Veuillez confirmer votre email avant de vous connecter. Vérifiez votre boîte mail.');
+}else if(authError.message.includes('Invalid login')){
+setError('Email ou mot de passe incorrect');
+}else{
+setError(authError.message);
+}
+setLoading(false);
+return;
+}
+
+// 2. Récupérer l'utilisateur depuis notre table
+const{data:user,error:userError}=await supabase
+.from('utilisateurs')
+.select('*')
+.eq('auth_id',authData.user.id)
+.single();
+
+if(userError||!user){
+// Peut-être ancien utilisateur sans auth_id, chercher par email
+const{data:userByEmail}=await supabase
+.from('utilisateurs')
+.select('*')
+.eq('email',email.toLowerCase().trim())
+.single();
+
+if(userByEmail){
+// Mettre à jour auth_id
+await supabase.from('utilisateurs').update({auth_id:authData.user.id,email_confirmed:true}).eq('id',userByEmail.id);
+onLogin({...userByEmail,auth_id:authData.user.id});
+}else{
+setError('Compte non trouvé');
+setLoading(false);
+return;
+}
+}else{
+// Mettre à jour email_confirmed si nécessaire
+if(!user.email_confirmed){
+await supabase.from('utilisateurs').update({email_confirmed:true}).eq('id',user.id);
+}
+onLogin(user);
+}
+}catch(e){
+console.error(e);
+setError('Erreur de connexion');
+}
+setLoading(false);
+};
+
+return(<div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4">
+<div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl"/>
+<div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-secondary-500/20 rounded-full blur-3xl"/>
+<div className="relative z-10 w-full max-w-md">
+<div className="glass rounded-3xl p-6 md:p-8 animate-fade-in">
+<div className="text-center mb-8">
+<div className="inline-flex items-center justify-center w-16 md:w-20 h-16 md:h-20 gradient-primary rounded-2xl mb-4 animate-glow text-white shadow-lg shadow-primary-500/30">
+<span className="text-2xl md:text-3xl font-bold">Q</span>
+</div>
+<h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">Qashora</h1>
+<p className="text-surface-400 mt-2 text-sm md:text-base">Gestion de Trésorerie</p>
+</div>
+<form onSubmit={handleSubmit} className="space-y-5">
+{error&&<Alert type="error" message={error}/>}
+<Input label="Email" type="email" value={email} onChange={ev=>setEmail(ev.target.value)} placeholder="votre@email.com" required/>
+<Input label="Mot de passe" type="password" value={password} onChange={ev=>setPassword(ev.target.value)} placeholder="Votre mot de passe" required/>
+<Button type="submit" className="w-full" size="lg" loading={loading}>{loading?'Connexion...':'🔐 Se connecter'}</Button>
+</form>
+<div className="mt-6 pt-6 border-t border-surface-700 text-center">
+<p className="text-surface-400 text-sm">Pas encore de compte ?</p>
+<button onClick={onGoRegister} className="text-primary-400 font-bold hover:underline mt-1">Créer un compte gratuitement</button>
+</div>
+</div>
+<button onClick={onGoLanding} className="w-full text-center text-surface-500 text-sm mt-4 hover:text-surface-300">← Retour à l'accueil</button>
+</div>
+</div>);
 };
 
 // ===== SIDEBAR RESPONSIVE =====
@@ -826,26 +993,31 @@ return(<tr key={user.id} className="table-row"><td className="px-4 py-3"><div cl
 // ===== APPLICATION PRINCIPALE =====
 const App=()=>{
 const[user,setUser]=useState(null);
-const[view,setView]=useState('landing'); // landing, login, register, app
+const[view,setView]=useState('landing'); // landing, login, register, confirmEmail, app
+const[confirmEmail,setConfirmEmail]=useState('');
 const[page,setPage]=useState('dashboard');
 const[sidebarOpen,setSidebarOpen]=useState(false);
 const[toast,setToast]=useState(null);
-const data=useData();
+
+// useData avec organisation_id de l'utilisateur connecté
+const data=useData(user?.organisation_id);
 
 const showToast=(message,type='info')=>setToast({message,type});
 const isSuperAdmin=SUPER_ADMINS.includes(user?.email);
 
-const handleLogin=(u)=>{setUser(u);setView('app');};
-const handleLogout=()=>{setUser(null);setView('landing');};
-const handleRegisterSuccess=(u)=>{setUser(u);setView('app');showToast('Compte cree avec succes! Bienvenue!','success');};
+const handleLogin=(u)=>{setUser(u);setView('app');showToast('Bienvenue '+u.username+' !','success');};
+const handleLogout=async()=>{await supabase.auth.signOut();setUser(null);setView('landing');};
+const handleNeedConfirmation=(email)=>{setConfirmEmail(email);setView('confirmEmail');};
 
 // Pages publiques
 if(view==='landing')return<LandingPage onGoLogin={()=>setView('login')} onGoRegister={()=>setView('register')}/>;
-if(view==='register')return<RegisterPage onGoLogin={()=>setView('login')} onRegisterSuccess={handleRegisterSuccess}/>;
+if(view==='register')return<RegisterPage onGoLogin={()=>setView('login')} onNeedConfirmation={handleNeedConfirmation}/>;
+if(view==='confirmEmail')return<ConfirmEmailPage email={confirmEmail} onGoLogin={()=>setView('login')}/>;
 if(view==='login')return<Login onLogin={handleLogin} onGoRegister={()=>setView('register')} onGoLanding={()=>setView('landing')}/>;
 
-// App (utilisateur connecte)
-if(data.loading)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Chargement..." size="lg"/></div>);
+// App (utilisateur connecté)
+if(!user)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Chargement..." size="lg"/></div>);
+if(data.loading)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Chargement des données..." size="lg"/></div>);
 if(data.error)return(<div className="min-h-screen flex items-center justify-center p-4"><Alert type="error" message={'Erreur: '+data.error}/></div>);
 
 return(<div className="min-h-screen bg-surface-950">

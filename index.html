@@ -749,7 +749,10 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0"><div className="
 
 // ===== PAGE PARAMETRES =====
 const Settings=({data,user,showToast})=>{const{banques,params,addBanque,updateBanque,deleteBanque,addParam,updateParam,deleteParam}=data;
-const[tab,setTab]=useState('banques');
+const[tab,setTab]=useState(()=>{
+// Récupérer l'onglet sauvegardé ou 'banques' par défaut
+return sessionStorage.getItem('settings_tab')||'banques';
+});
 const[showB,setShowB]=useState(false);
 const[editB,setEditB]=useState(null);
 const[saving,setSaving]=useState(false);
@@ -758,21 +761,19 @@ const[editItem,setEditItem]=useState(null);
 const[editValue,setEditValue]=useState('');
 const[adding,setAdding]=useState(false);
 
-// Garder une référence stable de l'onglet actuel
-const currentTab=useRef(tab);
-useEffect(()=>{currentTab.current=tab;},[tab]);
+// Sauvegarder l'onglet actuel dans sessionStorage
+useEffect(()=>{sessionStorage.setItem('settings_tab',tab);},[tab]);
 
 const canEdit=canDo(user?.role,'update');
 const tabs=[{id:'banques',label:'Banques',icon:'🏦',count:banques.length},{id:'pays',label:'Pays',icon:'🌍',count:params.pays.length},{id:'natures',label:'Natures',icon:'📝',count:params.natures.length},{id:'statuts',label:'Statuts',icon:'📊',count:params.statuts.length}];
 
-const saveB=async d=>{const currentTabValue=currentTab.current;setSaving(true);try{if(editB)await updateBanque(editB.id,d);else await addBanque(d);setShowB(false);setEditB(null);showToast?.(editB?'Banque modifiée':'Banque ajoutée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}setSaving(false);setTab(currentTabValue);};
-const delB=async b=>{const currentTabValue=currentTab.current;if(confirm('Supprimer '+b.nom+'?')){try{await deleteBanque(b.id);showToast?.('Banque supprimée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}setTab(currentTabValue);}};
+const saveB=async d=>{setSaving(true);try{if(editB)await updateBanque(editB.id,d);else await addBanque(d);setShowB(false);setEditB(null);showToast?.(editB?'Banque modifiée':'Banque ajoutée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}setSaving(false);};
+const delB=async b=>{if(confirm('Supprimer '+b.nom+'?')){try{await deleteBanque(b.id);showToast?.('Banque supprimée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}}};
 
 const getType=()=>tab==='natures'?'nature':tab==='statuts'?'statut':'pays';
 const getItems=()=>params[tab]||[];
 
 const handleAddItem=async()=>{
-    const currentTabValue=currentTab.current;
     if(!newItem.trim())return showToast?.('Veuillez saisir une valeur','warning');
     if(getItems().includes(newItem.trim()))return showToast?.('Cette valeur existe déjà','warning');
     setAdding(true);
@@ -782,11 +783,9 @@ const handleAddItem=async()=>{
         showToast?.('Élément ajouté','success');
     }catch(e){showToast?.('Erreur: '+e.message,'error');}
     setAdding(false);
-    setTab(currentTabValue);
 };
 
 const handleUpdateItem=async(oldVal)=>{
-    const currentTabValue=currentTab.current;
     if(!editValue.trim())return showToast?.('Veuillez saisir une valeur','warning');
     if(editValue.trim()===oldVal){setEditItem(null);return;}
     try{
@@ -794,17 +793,14 @@ const handleUpdateItem=async(oldVal)=>{
         setEditItem(null);
         showToast?.('Élément modifié','success');
     }catch(e){showToast?.('Erreur: '+e.message,'error');}
-    setTab(currentTabValue);
 };
 
 const handleDeleteItem=async(val)=>{
-    const currentTabValue=currentTab.current;
     if(confirm('Supprimer "'+val+'"?')){
         try{
             await deleteParam(getType(),val);
             showToast?.('Élément supprimé','success');
         }catch(e){showToast?.('Erreur: '+e.message,'error');}
-        setTab(currentTabValue);
     }
 };
 

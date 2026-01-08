@@ -473,12 +473,12 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 </div></div>))}
 </div>
 
-{showContactModal&&selectedPlan&&<Modal isOpen={showContactModal} onClose={()=>setShowContactModal(false)} title={`📱 Souscrire au plan ${PLANS[selectedPlan]?.nom||''}`} size="sm">
+<Modal isOpen={showContactModal&&!!selectedPlan} onClose={()=>setShowContactModal(false)} title={selectedPlan?`📱 Souscrire au plan ${PLANS[selectedPlan]?.nom||''}`:''} size="sm">
 <div className="space-y-4">
-<div className="p-4 bg-surface-800 rounded-xl text-center"><span className="text-4xl">{PLANS[selectedPlan]?.icon}</span><p className="text-xl font-bold text-surface-100 mt-2">{PLANS[selectedPlan]?.nom}</p><p className="text-2xl font-bold text-primary-400">{fmt(PLANS[selectedPlan]?.prix||0)} F/mois</p></div>
+{selectedPlan&&<><div className="p-4 bg-surface-800 rounded-xl text-center"><span className="text-4xl">{PLANS[selectedPlan]?.icon}</span><p className="text-xl font-bold text-surface-100 mt-2">{PLANS[selectedPlan]?.nom}</p><p className="text-2xl font-bold text-primary-400">{fmt(PLANS[selectedPlan]?.prix||0)} F/mois</p></div>
 <p className="text-sm text-surface-300">Contactez-nous :</p>
 <a href={getWhatsAppLink()} target="_blank" className="flex items-center gap-3 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl"><span className="text-2xl">📱</span><div><p className="font-bold text-emerald-400">WhatsApp</p></div></a>
-<p className="text-xs text-surface-500 text-center">Activation sous 24h après paiement.</p>
+<p className="text-xs text-surface-500 text-center">Activation sous 24h après paiement.</p></>}
 </div>
 </Modal>
 </div>);};

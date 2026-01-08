@@ -176,21 +176,52 @@ return(<><div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-90
 {isOpen&&<div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={toggle}/>}
 <aside className={cn('sidebar fixed left-0 top-0 h-screen w-64 bg-surface-900/95 backdrop-blur-xl border-r border-surface-800 flex flex-col z-50 transition-transform md:translate-x-0',isOpen?'open':'')}>
 <div className="p-6 border-b border-surface-800"><div className="flex items-center gap-3"><div className="w-11 h-11 gradient-primary rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg animate-glow">Q</div><div><h1 className="text-xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">Qashora</h1><p className="text-xs text-surface-500">v2.1</p></div></div></div>
-<nav className="flex-1 p-4 space-y-1 overflow-y-auto">{items.map(i=>(<button key={i.id} onClick={()=>{nav(i.id);toggle?.();}} className={cn('nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative',page===i.id?'bg-gradient-to-r from-primary-600/20 to-secondary-600/20 text-primary-400 border border-primary-500/30':'text-surface-400 hover:bg-surface-800 hover:text-surface-200')}><span className="text-lg">{i.icon}</span><span className="font-medium">{i.label}</span>{i.id==='transactions'&&notifications>0&&<span className="notification-badge">{notifications}</span>}</button>))}</nav>
+<nav className="flex-1 p-4 space-y-1 overflow-y-auto">{items.map(i=>(<button key={i.id} onClick={()=>{nav(i.id);toggle?.();}} className={cn('nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative',page===i.id?'bg-gradient-to-r from-primary-600/20 to-secondary-600/20 text-primary-400 border border-primary-500/30':'text-surface-400 hover:bg-surface-800 hover:text-surface-200')}><span className="text-lg">{i.icon}</span><span className="font-medium">{i.label}</span></button>))}</nav>
 <div className="p-4 border-t border-surface-800"><div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold">{user?.username?.charAt(0).toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium text-surface-200 truncate">{user?.username}</p><p className="text-xs text-surface-500 flex items-center gap-1"><span>{roleInfo.icon}</span>{roleInfo.label}</p></div></div><Button variant="ghost" className="w-full justify-start" onClick={logout} icon="🚪">Déconnexion</Button></div></aside></>);};
 
 // ===== PAGE DASHBOARD =====
-const Dashboard=({trans,banques,onNavigate})=>{const st=useMemo(()=>{const a=trans.filter(t=>!t.deletedAt&&t.statut!=='Annulé');const deb=a.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const cre=a.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);const sus=a.filter(t=>t.statut&&t.statut.includes('En attente'));const susD=sus.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const susC=sus.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);
+const Dashboard=({trans,banques,onNavigate})=>{
+const currentYear=new Date().getFullYear();
+const years=useMemo(()=>{const ySet=new Set();trans.forEach(t=>{if(t.date)ySet.add(new Date(t.date).getFullYear());});return[...ySet].sort((a,b)=>b-a);},[trans]);
+const[year,setYear]=useState(currentYear);
+const[d1,setD1]=useState('');
+const[d2,setD2]=useState('');
+
+const filtered=useMemo(()=>{let a=trans.filter(t=>!t.deletedAt&&t.statut!=='Annulé');
+if(d1&&d2){a=a.filter(t=>t.date>=d1&&t.date<=d2);}
+else if(year){a=a.filter(t=>new Date(t.date).getFullYear()===year);}
+return a;},[trans,year,d1,d2]);
+
+const st=useMemo(()=>{const a=filtered;const deb=a.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const cre=a.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);const sus=a.filter(t=>t.statut&&t.statut.includes('En attente'));const susD=sus.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const susC=sus.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);
 const sb={};banques.forEach(b=>{const bt=a.filter(t=>t.banqueNom===b.nom);const soldeOuv=parseFloat(b.solde_ouverture)||0;const mvt=(bt.reduce((s,t)=>s+(parseFloat(t.debit)||0),0))-(bt.reduce((s,t)=>s+(parseFloat(t.credit)||0),0));sb[b.nom]=soldeOuv+mvt;});
 const md={};a.forEach(t=>{const m=new Date(t.date).toLocaleDateString('fr-FR',{month:'short'});if(!md[m])md[m]={d:0,c:0};md[m].d+=parseFloat(t.debit)||0;md[m].c+=parseFloat(t.credit)||0;});const bn={};a.forEach(t=>{if(!bn[t.nature])bn[t.nature]=0;bn[t.nature]+=(parseFloat(t.debit)||0)+(parseFloat(t.credit)||0);});
 const totalSoldeOuv=banques.reduce((s,b)=>s+(parseFloat(b.solde_ouverture)||0),0);
-return{deb,cre,sol:totalSoldeOuv+deb-cre,susN:susD-susC,susC:sus.length,cnt:a.length,sb,md,bn,totalSoldeOuv};},[trans,banques]);
+return{deb,cre,sol:totalSoldeOuv+deb-cre,susN:susD-susC,susC:sus.length,cnt:a.length,sb,md,bn,totalSoldeOuv};},[filtered,banques]);
+
 const bar=useMemo(()=>{const l=Object.keys(st.md).slice(-6);return{labels:l,datasets:[{label:'Encaiss.',data:l.map(x=>st.md[x]?.d||0),backgroundColor:'rgba(217,70,239,0.7)',borderRadius:6},{label:'Décaiss.',data:l.map(x=>st.md[x]?.c||0),backgroundColor:'rgba(34,211,238,0.7)',borderRadius:6}]};},[st.md]);
 const line=useMemo(()=>{const l=Object.keys(st.md).slice(-6);let c=st.totalSoldeOuv;return{labels:l,datasets:[{label:'Solde',data:l.map(x=>{c+=(st.md[x]?.d||0)-(st.md[x]?.c||0);return c;}),borderColor:'#d946ef',backgroundColor:'rgba(217,70,239,0.1)',fill:true,tension:0.4}]};},[st.md,st.totalSoldeOuv]);
 const donut=useMemo(()=>({labels:Object.keys(st.bn),datasets:[{data:Object.values(st.bn),backgroundColor:['#d946ef','#22d3ee','#f59e0b','#10b981'],borderWidth:0}]}),[st.bn]);
 const top=useMemo(()=>{const s=Object.entries(st.sb).filter(([_,v])=>v!==0).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,5);return{labels:s.map(([k])=>k.length>12?k.substring(0,12)+'..':k),datasets:[{label:'Solde',data:s.map(([_,v])=>v),backgroundColor:s.map(([_,v])=>v>=0?'rgba(16,185,129,0.7)':'rgba(239,68,68,0.7)'),borderRadius:6}]};},[st.sb]);
+
+const resetFilters=()=>{setYear(currentYear);setD1('');setD2('');};
+const applyDateRange=(from,to)=>{setD1(from);setD2(to);setYear(0);};
+
 if(banques.length===0)return(<div className="animate-fade-in pt-16 md:pt-0"><div className="glass rounded-2xl p-8 text-center"><div className="text-6xl mb-4">🏦</div><h2 className="text-2xl font-bold text-surface-100 mb-2">Bienvenue sur Qashora !</h2><p className="text-surface-400 mb-6">Pour commencer, ajoutez vos banques dans les paramètres.</p><Button onClick={()=>onNavigate('settings')} icon="⚙️" size="lg">Configurer mes banques</Button></div></div>);
-return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0"><div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-surface-100">Tableau de bord</h1><p className="text-surface-400 mt-1">Vue d'ensemble</p></div><p className="text-surface-300 font-mono text-sm">{new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</p></div><div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4"><StatCard icon="💰" label="Encaissements" value={fmt(st.deb)+' F'} gradient="gradient-primary"/><StatCard icon="📤" label="Décaissements" value={fmt(st.cre)+' F'} gradient="gradient-secondary"/><StatCard icon="📊" label="Solde Net" value={fmt(st.sol)+' F'} subvalue={st.sol>=0?'Excédent':'Déficit'} gradient={st.sol>=0?"gradient-success":"gradient-danger"}/><StatCard icon="⏳" label="Suspens Net" value={fmt(st.susN)+' F'} subvalue={st.susC+' en attente'} gradient="gradient-warning" onClick={()=>onNavigate('transactions')}/><StatCard icon="📋" label="Transactions" value={st.cnt} subvalue="actives" gradient="gradient-indigo" onClick={()=>onNavigate('transactions')}/></div>{trans.length>0?(<><div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><ChartC type="bar" data={bar} title="Évolution Mensuelle"/><ChartC type="line" data={line} title="Solde Cumulé"/></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-5"><ChartC type="doughnut" data={donut} title="Par Nature"/><div className="lg:col-span-2"><ChartC type="bar" data={top} title="Top Banques" options={{indexAxis:'y'}}/></div></div></>):(<div className="glass rounded-xl p-8 text-center"><p className="text-surface-400">Aucune transaction. Créez votre première transaction !</p><Button onClick={()=>onNavigate('transactions')} className="mt-4" icon="➕">Nouvelle transaction</Button></div>)}{Object.keys(st.sb).length>0&&(<div className="glass rounded-xl p-4"><h2 className="text-lg font-bold text-surface-100 mb-4">🏦 Soldes par Banque</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-2">{Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([b,s])=>(<div key={b} className={cn('p-3 rounded-lg border',s>=0?'bg-emerald-500/10 border-emerald-500/30':'bg-red-500/10 border-red-500/30')}><p className="text-xs text-surface-400 truncate">{b}</p><p className={cn('text-base font-mono font-bold',s>=0?'text-emerald-400':'text-red-400')}>{fmt(s)}</p></div>))}</div></div>)}</div>);};
+
+return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
+<div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-surface-100">Tableau de bord</h1><p className="text-surface-400 mt-1">Vue d'ensemble {d1&&d2?`du ${fmtD(d1)} au ${fmtD(d2)}`:year?`- Année ${year}`:''}</p></div><p className="text-surface-300 font-mono text-sm">{new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</p></div>
+
+<div className="glass rounded-xl p-4"><div className="flex flex-wrap items-end gap-3">
+<div><label className="block text-xs font-bold text-surface-300 mb-1.5">Année</label><select value={year} onChange={e=>{setYear(parseInt(e.target.value));setD1('');setD2('');}} className="px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-surface-100 text-sm"><option value={0}>Toutes</option>{years.map(y=><option key={y} value={y}>{y}</option>)}{!years.includes(currentYear)&&<option value={currentYear}>{currentYear}</option>}</select></div>
+<div><label className="block text-xs font-bold text-surface-300 mb-1.5">Du</label><input type="date" value={d1} onChange={e=>applyDateRange(e.target.value,d2||e.target.value)} className="px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-surface-100 text-sm"/></div>
+<div><label className="block text-xs font-bold text-surface-300 mb-1.5">Au</label><input type="date" value={d2} onChange={e=>applyDateRange(d1||e.target.value,e.target.value)} className="px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-surface-100 text-sm"/></div>
+<Button variant="secondary" onClick={resetFilters} icon="🔄" size="sm">Réinit.</Button>
+</div></div>
+
+<div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4"><StatCard icon="💰" label="Encaissements" value={fmt(st.deb)+' F'} gradient="gradient-primary"/><StatCard icon="📤" label="Décaissements" value={fmt(st.cre)+' F'} gradient="gradient-secondary"/><StatCard icon="📊" label="Solde Net" value={fmt(st.sol)+' F'} subvalue={st.sol>=0?'Excédent':'Déficit'} gradient={st.sol>=0?"gradient-success":"gradient-danger"}/><StatCard icon="⏳" label="Suspens Net" value={fmt(st.susN)+' F'} subvalue={st.susC+' en attente'} gradient="gradient-warning" onClick={()=>onNavigate('transactions')}/><StatCard icon="📋" label="Transactions" value={st.cnt} subvalue="actives" gradient="gradient-indigo" onClick={()=>onNavigate('transactions')}/></div>
+{filtered.length>0?(<><div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><ChartC type="bar" data={bar} title="Évolution Mensuelle"/><ChartC type="line" data={line} title="Solde Cumulé"/></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-5"><ChartC type="doughnut" data={donut} title="Par Nature"/><div className="lg:col-span-2"><ChartC type="bar" data={top} title="Top Banques" options={{indexAxis:'y'}}/></div></div></>):(<div className="glass rounded-xl p-8 text-center"><p className="text-surface-400">Aucune transaction pour cette période.</p><Button onClick={()=>onNavigate('transactions')} className="mt-4" icon="➕">Nouvelle transaction</Button></div>)}
+{Object.keys(st.sb).length>0&&(<div className="glass rounded-xl p-4"><h2 className="text-lg font-bold text-surface-100 mb-4">🏦 Soldes par Banque</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-2">{Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([b,s])=>(<div key={b} className={cn('p-3 rounded-lg border',s>=0?'bg-emerald-500/10 border-emerald-500/30':'bg-red-500/10 border-red-500/30')}><p className="text-xs text-surface-400 truncate">{b}</p><p className={cn('text-base font-mono font-bold',s>=0?'text-emerald-400':'text-red-400')}>{fmt(s)}</p></div>))}</div></div>)}
+</div>);};
 
 // ===== EXPORT PDF =====
 const exportPDF=(title,headers,rows,totals,filename)=>{
@@ -268,16 +299,21 @@ const[editItem,setEditItem]=useState(null);
 const[editValue,setEditValue]=useState('');
 const[adding,setAdding]=useState(false);
 
+// Garder une référence stable de l'onglet actuel
+const currentTab=useRef(tab);
+useEffect(()=>{currentTab.current=tab;},[tab]);
+
 const canEdit=canDo(user?.role,'update');
 const tabs=[{id:'banques',label:'Banques',icon:'🏦',count:banques.length},{id:'pays',label:'Pays',icon:'🌍',count:params.pays.length},{id:'natures',label:'Natures',icon:'📝',count:params.natures.length},{id:'statuts',label:'Statuts',icon:'📊',count:params.statuts.length}];
 
-const saveB=async d=>{setSaving(true);try{if(editB)await updateBanque(editB.id,d);else await addBanque(d);setShowB(false);setEditB(null);showToast?.(editB?'Banque modifiée':'Banque ajoutée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}setSaving(false);};
-const delB=async b=>{if(confirm('Supprimer '+b.nom+'?')){try{await deleteBanque(b.id);showToast?.('Banque supprimée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}}};
+const saveB=async d=>{const currentTabValue=currentTab.current;setSaving(true);try{if(editB)await updateBanque(editB.id,d);else await addBanque(d);setShowB(false);setEditB(null);showToast?.(editB?'Banque modifiée':'Banque ajoutée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}setSaving(false);setTab(currentTabValue);};
+const delB=async b=>{const currentTabValue=currentTab.current;if(confirm('Supprimer '+b.nom+'?')){try{await deleteBanque(b.id);showToast?.('Banque supprimée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}setTab(currentTabValue);}};
 
 const getType=()=>tab==='natures'?'nature':tab==='statuts'?'statut':'pays';
 const getItems=()=>params[tab]||[];
 
 const handleAddItem=async()=>{
+    const currentTabValue=currentTab.current;
     if(!newItem.trim())return showToast?.('Veuillez saisir une valeur','warning');
     if(getItems().includes(newItem.trim()))return showToast?.('Cette valeur existe déjà','warning');
     setAdding(true);
@@ -287,9 +323,11 @@ const handleAddItem=async()=>{
         showToast?.('Élément ajouté','success');
     }catch(e){showToast?.('Erreur: '+e.message,'error');}
     setAdding(false);
+    setTab(currentTabValue);
 };
 
 const handleUpdateItem=async(oldVal)=>{
+    const currentTabValue=currentTab.current;
     if(!editValue.trim())return showToast?.('Veuillez saisir une valeur','warning');
     if(editValue.trim()===oldVal){setEditItem(null);return;}
     try{
@@ -297,14 +335,17 @@ const handleUpdateItem=async(oldVal)=>{
         setEditItem(null);
         showToast?.('Élément modifié','success');
     }catch(e){showToast?.('Erreur: '+e.message,'error');}
+    setTab(currentTabValue);
 };
 
 const handleDeleteItem=async(val)=>{
+    const currentTabValue=currentTab.current;
     if(confirm('Supprimer "'+val+'"?')){
         try{
             await deleteParam(getType(),val);
             showToast?.('Élément supprimé','success');
         }catch(e){showToast?.('Erreur: '+e.message,'error');}
+        setTab(currentTabValue);
     }
 };
 
@@ -389,17 +430,12 @@ const data=useData();
 
 const showToast=(message,type='info')=>setToast({message,type});
 
-// Calcul des notifications (transactions en attente)
-const notifications=useMemo(()=>{
-    return data.trans.filter(t=>!t.deletedAt&&t.statut&&t.statut.includes('En attente')).length;
-},[data.trans]);
-
 if(data.loading)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Chargement de Qashora..." size="lg"/></div>);
 if(data.error)return(<div className="min-h-screen flex items-center justify-center p-4"><Alert type="error" message={'Erreur de connexion: '+data.error}/></div>);
 if(!user)return<Login onLogin={setUser} users={data.users} loading={data.loading}/>;
 
 return(<div className="min-h-screen bg-surface-950">
-<Side page={page} nav={setPage} user={user} logout={()=>setUser(null)} notifications={notifications} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)}/>
+<Side page={page} nav={setPage} user={user} logout={()=>setUser(null)} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)}/>
 <main className="main-content md:ml-64 p-4 md:p-8">
 {page==='dashboard'&&<Dashboard trans={data.trans} banques={data.banques} onNavigate={setPage}/>}
 {page==='transactions'&&<Transactions data={data} user={user} showToast={showToast}/>}

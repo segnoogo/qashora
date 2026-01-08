@@ -683,10 +683,28 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 {Object.keys(st.sb).length>0&&(<div className="glass rounded-xl p-4"><h2 className="text-lg font-bold text-surface-100 mb-4">🏦 Soldes par Banque</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-2">{Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([b,s])=>(<div key={b} className={cn('p-3 rounded-lg border',s>=0?'bg-emerald-500/10 border-emerald-500/30':'bg-red-500/10 border-red-500/30')}><p className="text-xs text-surface-400 truncate">{b}</p><p className={cn('text-base font-mono font-bold',s>=0?'text-emerald-400':'text-red-400')}>{fmt(s)}</p></div>))}</div></div>)}
 </div>);};
 
+// ===== FORMATAGE POUR EXPORTS =====
+const fmtNum=(n)=>{
+if(n===null||n===undefined||n==='')return'-';
+const num=parseFloat(n);
+if(isNaN(num))return n;
+return num.toLocaleString('fr-FR');
+};
+
 // ===== EXPORT PDF AMÉLIORÉ =====
 const exportPDF=(title,headers,rows,totals,filename)=>{
 const{jsPDF}=window.jspdf;
 const doc=new jsPDF('landscape');
+
+// Formater les nombres dans les lignes
+const formattedRows=rows.map(row=>row.map(cell=>{
+if(typeof cell==='number')return fmtNum(cell);
+return cell;
+}));
+const formattedTotals=totals?totals.map(cell=>{
+if(typeof cell==='number')return fmtNum(cell);
+return cell;
+}):null;
 
 // Titre avec style
 doc.setFontSize(20);
@@ -708,8 +726,8 @@ doc.text('Qashora',255,20);
 // Tableau avec meilleur style
 doc.autoTable({
 head:[headers],
-body:rows,
-foot:totals?[totals]:[],
+body:formattedRows,
+foot:formattedTotals?[formattedTotals]:[],
 startY:35,
 theme:'striped',
 headStyles:{
@@ -720,8 +738,8 @@ fontSize:9,
 halign:'center'
 },
 footStyles:{
-fillColor:[30,41,59],
-textColor:[217,70,239],
+fillColor:[50,50,50],
+textColor:[255,255,255],
 fontStyle:'bold',
 fontSize:9
 },
@@ -766,7 +784,7 @@ const ws=XLSX.utils.aoa_to_sheet(data);
 // Largeur des colonnes
 const colWidths=headers.map((h,i)=>{
 const maxLen=Math.max(h.length,...rows.map(r=>String(r[i]||'').length));
-return{wch:Math.min(maxLen+2,30)};
+return{wch:Math.min(maxLen+5,35)};
 });
 ws['!cols']=colWidths;
 

@@ -59,6 +59,279 @@ const PLANS={
 const WHATSAPP_CONTACT='+221781234567';
 const SUPER_ADMINS=['admin@qashora.com','sawadgsalif@gmail.com'];
 
+// ===== PAGE D'ACCUEIL (LANDING) =====
+const LandingPage=({onGoLogin,onGoRegister})=>{
+const features=[
+{icon:'📊',title:'Tableau de bord',desc:'Vue d\'ensemble de votre trésorerie en temps réel'},
+{icon:'💰',title:'Multi-banques',desc:'Gérez plusieurs comptes bancaires en un seul endroit'},
+{icon:'📋',title:'Transactions',desc:'Suivi détaillé des encaissements et décaissements'},
+{icon:'📈',title:'Rapports',desc:'Graphiques et analyses pour piloter vos finances'},
+{icon:'👥',title:'Multi-utilisateurs',desc:'Collaboration avec gestion des rôles'},
+{icon:'📱',title:'Responsive',desc:'Accessible sur ordinateur, tablette et mobile'}
+];
+
+return(<div className="min-h-screen bg-surface-950">
+{/* Header */}
+<header className="fixed top-0 left-0 right-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-surface-800">
+<div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+<div className="flex items-center gap-3">
+<div className="w-10 h-10 gradient-primary rounded-xl flex items-center justify-center text-white font-bold text-lg shadow-lg">Q</div>
+<span className="text-xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">Qashora</span>
+</div>
+<div className="flex items-center gap-3">
+<button onClick={onGoLogin} className="px-4 py-2 text-surface-300 hover:text-white transition-colors font-medium">Connexion</button>
+<button onClick={onGoRegister} className="px-5 py-2 gradient-primary text-white rounded-xl font-bold hover:shadow-lg hover:shadow-primary-500/30 transition-all">S'inscrire</button>
+</div>
+</div>
+</header>
+
+{/* Hero */}
+<section className="pt-32 pb-20 px-4">
+<div className="max-w-4xl mx-auto text-center">
+<div className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500/10 border border-primary-500/30 rounded-full text-primary-400 text-sm font-medium mb-6">
+<span className="animate-pulse">✨</span> Gestion de trésorerie simplifiée
+</div>
+<h1 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight">
+Pilotez votre <span className="bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">trésorerie</span> en toute simplicité
+</h1>
+<p className="text-xl text-surface-400 mb-8 max-w-2xl mx-auto">
+Qashora vous aide à gérer vos flux financiers, suivre vos comptes bancaires et prendre les meilleures décisions pour votre entreprise.
+</p>
+<div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+<button onClick={onGoRegister} className="w-full sm:w-auto px-8 py-4 gradient-primary text-white rounded-xl font-bold text-lg hover:shadow-xl hover:shadow-primary-500/30 transition-all hover:-translate-y-1">
+🚀 Commencer gratuitement
+</button>
+<button onClick={onGoLogin} className="w-full sm:w-auto px-8 py-4 bg-surface-800 text-surface-200 rounded-xl font-bold text-lg hover:bg-surface-700 transition-all border border-surface-700">
+Se connecter
+</button>
+</div>
+<p className="text-surface-500 text-sm mt-4">14 jours d'essai gratuit • Aucune carte requise</p>
+</div>
+</section>
+
+{/* Features */}
+<section className="py-20 px-4 bg-surface-900/50">
+<div className="max-w-6xl mx-auto">
+<h2 className="text-3xl font-bold text-center text-white mb-4">Tout ce dont vous avez besoin</h2>
+<p className="text-surface-400 text-center mb-12 max-w-2xl mx-auto">Des outils puissants pour gérer efficacement la trésorerie de votre entreprise</p>
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+{features.map((f,i)=>(<div key={i} className="glass rounded-2xl p-6 hover:border-primary-500/50 transition-all hover:-translate-y-1">
+<div className="w-14 h-14 gradient-primary rounded-xl flex items-center justify-center text-2xl mb-4">{f.icon}</div>
+<h3 className="text-lg font-bold text-white mb-2">{f.title}</h3>
+<p className="text-surface-400">{f.desc}</p>
+</div>))}
+</div>
+</div>
+</section>
+
+{/* Pricing */}
+<section className="py-20 px-4" id="pricing">
+<div className="max-w-6xl mx-auto">
+<h2 className="text-3xl font-bold text-center text-white mb-4">Tarifs simples et transparents</h2>
+<p className="text-surface-400 text-center mb-12">Choisissez le plan adapté à vos besoins</p>
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+{Object.entries(PLANS).map(([key,plan])=>(<div key={key} className={cn('glass rounded-3xl overflow-hidden transition-all hover:shadow-2xl',key==='standard'?'ring-2 ring-primary-500 relative':'')}>
+{key==='standard'&&<div className="absolute top-4 right-4 bg-primary-500 text-white text-xs font-bold px-3 py-1 rounded-full">POPULAIRE</div>}
+<div className={cn('p-6 text-white',plan.gradient)}>
+<div className="flex justify-between items-start">
+<div><p className="text-white/80 text-sm">Plan</p><h3 className="text-2xl font-bold">{plan.nom}</h3></div>
+<span className="text-4xl">{plan.icon}</span>
+</div>
+<div className="mt-4">
+<span className="text-4xl font-bold">{plan.prix>0?fmt(plan.prix):'Gratuit'}</span>
+{plan.prix>0&&<span className="text-white/80 ml-2">FCFA/{plan.duree}</span>}
+</div>
+</div>
+<div className="p-6">
+<ul className="space-y-3">{plan.features.map((f,i)=><li key={i} className="flex items-center gap-3 text-surface-300"><span className="w-5 h-5 bg-primary-500/20 text-primary-400 rounded-full flex items-center justify-center text-xs">✓</span>{f}</li>)}</ul>
+<button onClick={onGoRegister} className={cn('w-full mt-6 py-3 rounded-xl font-bold transition-all',key==='trial'?'bg-surface-700 text-surface-300 hover:bg-surface-600':'gradient-primary text-white hover:shadow-lg')}>
+{key==='trial'?'Essayer gratuitement':'Commencer'}
+</button>
+</div>
+</div>))}
+</div>
+</div>
+</section>
+
+{/* CTA */}
+<section className="py-20 px-4">
+<div className="max-w-4xl mx-auto">
+<div className="glass rounded-3xl p-8 md:p-12 text-center border-2 border-primary-500/30">
+<h2 className="text-3xl font-bold text-white mb-4">Prêt à mieux gérer votre trésorerie ?</h2>
+<p className="text-surface-400 mb-8">Rejoignez des centaines d'entreprises qui font confiance à Qashora</p>
+<button onClick={onGoRegister} className="px-8 py-4 gradient-primary text-white rounded-xl font-bold text-lg hover:shadow-xl hover:shadow-primary-500/30 transition-all">
+🚀 Créer mon compte gratuit
+</button>
+</div>
+</div>
+</section>
+
+{/* Footer */}
+<footer className="py-8 px-4 border-t border-surface-800">
+<div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+<div className="flex items-center gap-2">
+<div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center text-white font-bold">Q</div>
+<span className="font-bold text-surface-300">Qashora</span>
+</div>
+<p className="text-surface-500 text-sm">© 2025 Qashora. Tous droits réservés.</p>
+<div className="flex items-center gap-4">
+<a href={`https://wa.me/${WHATSAPP_CONTACT.replace('+','')}`} target="_blank" className="text-surface-400 hover:text-emerald-400 transition-colors">📱 WhatsApp</a>
+<a href="mailto:contact@qashora.com" className="text-surface-400 hover:text-primary-400 transition-colors">📧 Contact</a>
+</div>
+</div>
+</footer>
+</div>);
+};
+
+// ===== PAGE D'INSCRIPTION =====
+const RegisterPage=({onGoLogin,onRegisterSuccess})=>{
+const[step,setStep]=useState(1);
+const[loading,setLoading]=useState(false);
+const[error,setError]=useState('');
+const[form,setForm]=useState({
+organisation:'',
+nom:'',
+prenom:'',
+email:'',
+password:'',
+confirmPassword:''
+});
+
+const handleChange=(field,value)=>setForm(prev=>({...prev,[field]:value}));
+
+const validateStep1=()=>{
+if(!form.organisation.trim()){setError('Le nom de l\'organisation est requis');return false;}
+if(form.organisation.length<2){setError('Le nom doit faire au moins 2 caractères');return false;}
+setError('');return true;
+};
+
+const validateStep2=()=>{
+if(!form.nom.trim()||!form.prenom.trim()){setError('Nom et prénom sont requis');return false;}
+if(!form.email.trim()||!form.email.includes('@')){setError('Email invalide');return false;}
+if(form.password.length<4){setError('Mot de passe: minimum 4 caractères');return false;}
+if(form.password!==form.confirmPassword){setError('Les mots de passe ne correspondent pas');return false;}
+setError('');return true;
+};
+
+const handleSubmit=async()=>{
+if(!validateStep2())return;
+setLoading(true);setError('');
+try{
+// Vérifier si l'email existe déjà
+const{data:existingUser}=await supabase.from('utilisateurs').select('id').eq('email',form.email).single();
+if(existingUser){setError('Cet email est déjà utilisé');setLoading(false);return;}
+
+// Créer l'organisation
+const{data:org,error:orgError}=await supabase.from('organisations').insert([{
+nom:form.organisation.trim(),
+created_at:new Date().toISOString()
+}]).select().single();
+if(orgError)throw orgError;
+
+// Créer l'utilisateur admin
+const{data:user,error:userError}=await supabase.from('utilisateurs').insert([{
+organisation_id:org.id,
+username:`${form.prenom} ${form.nom}`,
+email:form.email.toLowerCase().trim(),
+password:form.password,
+role:'Admin',
+actif:true,
+created_at:new Date().toISOString()
+}]).select().single();
+if(userError)throw userError;
+
+// Créer l'abonnement essai (14 jours)
+const dateFin=new Date();dateFin.setDate(dateFin.getDate()+14);
+await supabase.from('abonnements').insert([{
+organisation_id:org.id,
+user_id:user.id,
+plan:'trial',
+statut:'actif',
+date_debut:new Date().toISOString(),
+date_fin:dateFin.toISOString(),
+montant:0
+}]);
+
+// Succès!
+onRegisterSuccess(user);
+}catch(e){
+console.error(e);
+setError(e.message||'Erreur lors de l\'inscription');
+}
+setLoading(false);
+};
+
+return(<div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
+<div className="w-full max-w-md">
+{/* Logo */}
+<div className="text-center mb-8">
+<div className="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center text-white font-bold text-2xl shadow-lg mx-auto mb-4 animate-glow">Q</div>
+<h1 className="text-2xl font-bold text-white">Créer votre compte</h1>
+<p className="text-surface-400 mt-2">Commencez avec 14 jours d'essai gratuit</p>
+</div>
+
+{/* Progress */}
+<div className="flex items-center justify-center gap-2 mb-8">
+<div className={cn('w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all',step>=1?'gradient-primary text-white':'bg-surface-800 text-surface-500')}>1</div>
+<div className={cn('w-16 h-1 rounded-full transition-all',step>=2?'gradient-primary':'bg-surface-800')}/>
+<div className={cn('w-10 h-10 rounded-full flex items-center justify-center font-bold transition-all',step>=2?'gradient-primary text-white':'bg-surface-800 text-surface-500')}>2</div>
+</div>
+
+<div className="glass rounded-2xl p-6">
+{error&&<div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">{error}</div>}
+
+{step===1&&(<div className="space-y-4 animate-fade-in">
+<div>
+<label className="block text-sm font-bold text-surface-300 mb-2">🏢 Nom de votre organisation</label>
+<input type="text" value={form.organisation} onChange={e=>handleChange('organisation',e.target.value)} placeholder="Ex: Ma Société SARL" className="w-full px-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-white placeholder-surface-500 focus:border-primary-500"/>
+<p className="text-xs text-surface-500 mt-2">Le nom de votre entreprise ou organisation</p>
+</div>
+<button onClick={()=>{if(validateStep1())setStep(2);}} className="w-full py-3 gradient-primary text-white rounded-xl font-bold hover:shadow-lg transition-all">
+Continuer →
+</button>
+</div>)}
+
+{step===2&&(<div className="space-y-4 animate-fade-in">
+<div className="grid grid-cols-2 gap-3">
+<div>
+<label className="block text-xs font-bold text-surface-300 mb-1.5">Prénom</label>
+<input type="text" value={form.prenom} onChange={e=>handleChange('prenom',e.target.value)} placeholder="Jean" className="w-full px-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-white placeholder-surface-500 focus:border-primary-500"/>
+</div>
+<div>
+<label className="block text-xs font-bold text-surface-300 mb-1.5">Nom</label>
+<input type="text" value={form.nom} onChange={e=>handleChange('nom',e.target.value)} placeholder="Dupont" className="w-full px-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-white placeholder-surface-500 focus:border-primary-500"/>
+</div>
+</div>
+<div>
+<label className="block text-xs font-bold text-surface-300 mb-1.5">📧 Email</label>
+<input type="email" value={form.email} onChange={e=>handleChange('email',e.target.value)} placeholder="jean@exemple.com" className="w-full px-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-white placeholder-surface-500 focus:border-primary-500"/>
+</div>
+<div>
+<label className="block text-xs font-bold text-surface-300 mb-1.5">🔒 Mot de passe</label>
+<input type="password" value={form.password} onChange={e=>handleChange('password',e.target.value)} placeholder="Minimum 4 caractères" className="w-full px-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-white placeholder-surface-500 focus:border-primary-500"/>
+</div>
+<div>
+<label className="block text-xs font-bold text-surface-300 mb-1.5">🔒 Confirmer le mot de passe</label>
+<input type="password" value={form.confirmPassword} onChange={e=>handleChange('confirmPassword',e.target.value)} placeholder="Répétez le mot de passe" className="w-full px-4 py-3 bg-surface-800 border border-surface-600 rounded-xl text-white placeholder-surface-500 focus:border-primary-500"/>
+</div>
+<div className="flex gap-3">
+<button onClick={()=>setStep(1)} className="px-6 py-3 bg-surface-700 text-surface-300 rounded-xl font-bold hover:bg-surface-600 transition-all">
+← Retour
+</button>
+<button onClick={handleSubmit} disabled={loading} className="flex-1 py-3 gradient-primary text-white rounded-xl font-bold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+{loading?<><div className="loader" style={{width:20,height:20}}/>Création...</>:'🚀 Créer mon compte'}
+</button>
+</div>
+</div>)}
+</div>
+
+<p className="text-center text-surface-400 mt-6">
+Déjà inscrit ? <button onClick={onGoLogin} className="text-primary-400 font-bold hover:underline">Se connecter</button>
+</p>
+</div>
+</div>);
+};
+
 // ===== UTILITAIRES =====
 const fmt=n=>n?new Intl.NumberFormat('fr-FR').format(Math.round(n)):'0';
 const fmtD=s=>s?new Date(s).toLocaleDateString('fr-FR'):'';
@@ -180,13 +453,16 @@ const useData=()=>{
 };
 
 // ===== PAGE LOGIN =====
-const Login=({onLogin,users,loading:loadingData})=>{const[u,setU]=useState('');const[p,setP]=useState('');const[e,setE]=useState('');const[loading,setLoading]=useState(false);
+const Login=({onLogin,onGoRegister,onGoLanding})=>{
+const[u,setU]=useState('');const[p,setP]=useState('');const[e,setE]=useState('');const[loading,setLoading]=useState(false);const[users,setUsers]=useState([]);const[loadingData,setLoadingData]=useState(true);
+useEffect(()=>{const load=async()=>{const{data}=await supabase.from('utilisateurs').select('*').eq('actif',true);setUsers(data||[]);setLoadingData(false);};load();},[]);
 const go=async(ev)=>{ev.preventDefault();setE('');if(!u||!p){setE('Veuillez remplir tous les champs');return;}setLoading(true);await new Promise(r=>setTimeout(r,300));
-const user=users.find(x=>x.username.toLowerCase()===u.toLowerCase());
-if(user){const validPwd=user.password?user.password===p:(p===user.username.toLowerCase()+'123');if(validPwd){onLogin(user);}else{setE('Mot de passe incorrect');}}else{setE('Utilisateur non trouvé');}
+const user=users.find(x=>x.username?.toLowerCase()===u.toLowerCase()||x.email?.toLowerCase()===u.toLowerCase());
+if(user){const validPwd=user.password?user.password===p:(p===user.username.toLowerCase()+'123');if(validPwd){onLogin(user);}else{setE('Mot de passe incorrect');}}else{setE('Utilisateur non trouve');}
 setLoading(false);};
-if(loadingData)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Connexion à la base de données..." size="lg"/></div>);
-return(<div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"><div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl"/><div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-secondary-500/20 rounded-full blur-3xl"/><div className="relative z-10 w-full max-w-md"><div className="glass rounded-3xl p-6 md:p-8 animate-fade-in"><div className="text-center mb-8"><div className="inline-flex items-center justify-center w-16 md:w-20 h-16 md:h-20 gradient-primary rounded-2xl mb-4 animate-glow text-white shadow-lg shadow-primary-500/30"><span className="text-2xl md:text-3xl font-bold">Q</span></div><h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">Qashora</h1><p className="text-surface-400 mt-2 text-sm md:text-base">Gestion de Trésorerie Intelligente</p></div><form onSubmit={go} className="space-y-5">{e&&<Alert type="error" message={e}/>}<Input label="Nom d'utilisateur" value={u} onChange={ev=>setU(ev.target.value)} placeholder="Entrez votre nom" icon="👤" required/><Input label="Mot de passe" type="password" value={p} onChange={ev=>setP(ev.target.value)} placeholder="Entrez votre mot de passe" icon="🔒" required/><Button type="submit" className="w-full" size="lg" loading={loading}>{loading?'Connexion...':'🔐 Se connecter'}</Button></form></div><p className="text-center text-surface-500 text-xs mt-6">© 2025 Qashora v2.1</p></div></div>);};
+if(loadingData)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Connexion..." size="lg"/></div>);
+return(<div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4"><div className="absolute top-1/4 -left-20 w-96 h-96 bg-primary-500/20 rounded-full blur-3xl"/><div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-secondary-500/20 rounded-full blur-3xl"/><div className="relative z-10 w-full max-w-md"><div className="glass rounded-3xl p-6 md:p-8 animate-fade-in"><div className="text-center mb-8"><div className="inline-flex items-center justify-center w-16 md:w-20 h-16 md:h-20 gradient-primary rounded-2xl mb-4 animate-glow text-white shadow-lg shadow-primary-500/30"><span className="text-2xl md:text-3xl font-bold">Q</span></div><h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent">Qashora</h1><p className="text-surface-400 mt-2 text-sm md:text-base">Gestion de Tresorerie</p></div><form onSubmit={go} className="space-y-5">{e&&<Alert type="error" message={e}/>}<Input label="Email ou nom" value={u} onChange={ev=>setU(ev.target.value)} placeholder="votre@email.com" required/><Input label="Mot de passe" type="password" value={p} onChange={ev=>setP(ev.target.value)} placeholder="Votre mot de passe" required/><Button type="submit" className="w-full" size="lg" loading={loading}>Se connecter</Button></form><div className="mt-6 pt-6 border-t border-surface-700 text-center"><p className="text-surface-400 text-sm">Pas encore de compte ?</p><button onClick={onGoRegister} className="text-primary-400 font-bold hover:underline mt-1">Creer un compte</button></div></div><button onClick={onGoLanding} className="w-full text-center text-surface-500 text-sm mt-4 hover:text-surface-300">Retour</button></div></div>);
+};
 
 // ===== SIDEBAR RESPONSIVE =====
 const Side=({page,nav,user,logout,isOpen,toggle,isSuperAdmin})=>{
@@ -550,6 +826,7 @@ return(<tr key={user.id} className="table-row"><td className="px-4 py-3"><div cl
 // ===== APPLICATION PRINCIPALE =====
 const App=()=>{
 const[user,setUser]=useState(null);
+const[view,setView]=useState('landing'); // landing, login, register, app
 const[page,setPage]=useState('dashboard');
 const[sidebarOpen,setSidebarOpen]=useState(false);
 const[toast,setToast]=useState(null);
@@ -558,12 +835,21 @@ const data=useData();
 const showToast=(message,type='info')=>setToast({message,type});
 const isSuperAdmin=SUPER_ADMINS.includes(user?.email);
 
-if(data.loading)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Chargement de Qashora..." size="lg"/></div>);
-if(data.error)return(<div className="min-h-screen flex items-center justify-center p-4"><Alert type="error" message={'Erreur de connexion: '+data.error}/></div>);
-if(!user)return<Login onLogin={setUser} users={data.users} loading={data.loading}/>;
+const handleLogin=(u)=>{setUser(u);setView('app');};
+const handleLogout=()=>{setUser(null);setView('landing');};
+const handleRegisterSuccess=(u)=>{setUser(u);setView('app');showToast('Compte cree avec succes! Bienvenue!','success');};
+
+// Pages publiques
+if(view==='landing')return<LandingPage onGoLogin={()=>setView('login')} onGoRegister={()=>setView('register')}/>;
+if(view==='register')return<RegisterPage onGoLogin={()=>setView('login')} onRegisterSuccess={handleRegisterSuccess}/>;
+if(view==='login')return<Login onLogin={handleLogin} onGoRegister={()=>setView('register')} onGoLanding={()=>setView('landing')}/>;
+
+// App (utilisateur connecte)
+if(data.loading)return(<div className="min-h-screen flex items-center justify-center"><Loader text="Chargement..." size="lg"/></div>);
+if(data.error)return(<div className="min-h-screen flex items-center justify-center p-4"><Alert type="error" message={'Erreur: '+data.error}/></div>);
 
 return(<div className="min-h-screen bg-surface-950">
-<Side page={page} nav={setPage} user={user} logout={()=>setUser(null)} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin}/>
+<Side page={page} nav={setPage} user={user} logout={handleLogout} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin}/>
 <main className="main-content md:ml-64 p-4 md:p-8">
 {page==='dashboard'&&<Dashboard trans={data.trans} banques={data.banques} onNavigate={setPage}/>}
 {page==='transactions'&&<Transactions data={data} user={user} showToast={showToast}/>}

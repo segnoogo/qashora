@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config={theme:{extend:{colors:{primary:{50:'#fdf4ff',100:'#fae8ff',200:'#f5d0fe',300:'#f0abfc',400:'#e879f9',500:'#d946ef',600:'#c026d3',700:'#a21caf',800:'#86198f',900:'#701a75'},secondary:{50:'#ecfeff',100:'#cffafe',200:'#a5f3fc',300:'#67e8f9',400:'#22d3ee',500:'#06b6d4',600:'#0891b2',700:'#0e7490',800:'#155e75',900:'#164e63'},surface:{50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a',950:'#020617'}}}}}</script>
@@ -729,157 +730,206 @@ const top=useMemo(()=>{const s=Object.entries(st.sb).filter(([_,v])=>v!==0).sort
 const resetFilters=()=>{setYear(currentYear);setD1('');setD2('');};
 const applyDateRange=(from,to)=>{setD1(from);setD2(to);setYear(0);};
 
-// Export PDF du Dashboard
+// Export PDF du Dashboard avec graphiques visuels
 const exportDashboardPDF=async()=>{
 const{jsPDF}=window.jspdf;
-const doc=new jsPDF('portrait');
+const doc=new jsPDF('portrait','mm','a4');
 const now=new Date();
-const dateExport=now.toLocaleDateString('fr-FR')+' à '+now.toLocaleTimeString('fr-FR');
-const periode=d1&&d2?`du ${fmtD(d1)} au ${fmtD(d2)}`:year?`Année ${year}`:'Toutes périodes';
+const dateExport=now.toLocaleDateString('fr-FR')+' a '+now.toLocaleTimeString('fr-FR');
+const periode=d1&&d2?'du '+fmtD(d1)+' au '+fmtD(d2):year?'Annee '+year:'Toutes periodes';
 const logoUrl=organisation?.logo_url;
 
-// En-tête avec fond
+// Fonction pour ajouter l'en-tête sur chaque page
+const addHeader=async(pageNum)=>{
 doc.setFillColor(24,24,27);
-doc.rect(0,0,210,45,'F');
+doc.rect(0,0,210,40,'F');
 
-// Logo si disponible
 let logoX=14;
-if(logoUrl){
+if(logoUrl&&pageNum===1){
 try{
 const img=new Image();
 img.crossOrigin='anonymous';
 await new Promise((resolve,reject)=>{
 img.onload=resolve;
-img.onerror=reject;
+img.onerror=()=>resolve();
 img.src=logoUrl;
 });
-doc.addImage(img,'JPEG',14,8,28,28);
+if(img.complete&&img.naturalWidth>0){
+doc.addImage(img,'JPEG',14,6,28,28);
 logoX=48;
-}catch(e){console.log('Logo non chargé');}
+}
+}catch(e){}
 }
 
-// Titre et nom organisation
-doc.setFontSize(18);
+doc.setFontSize(16);
 doc.setTextColor(217,70,239);
-doc.text('Tableau de Bord',logoX,18);
+doc.text('TABLEAU DE BORD',logoX,15);
 if(orgName){
-doc.setFontSize(14);
+doc.setFontSize(12);
 doc.setTextColor(255,255,255);
-doc.text(orgName,logoX,28);
+doc.text(orgName,logoX,24);
 }
-if(organisation?.activite){
-doc.setFontSize(10);
-doc.setTextColor(180,180,180);
-doc.text(organisation.activite,logoX,36);
-}
-
-// Info export
 doc.setFontSize(9);
 doc.setTextColor(150,150,150);
 doc.text('Exporte le '+dateExport,196,12,{align:'right'});
 doc.text('Par: '+(user?.username||'Admin'),196,19,{align:'right'});
 doc.text('Periode: '+periode,196,26,{align:'right'});
+doc.text('Page '+pageNum,196,33,{align:'right'});
+};
 
-// Résumé financier - Section titre
+// Fonction pour ajouter le pied de page
+const addFooter=()=>{
+doc.setFontSize(8);
+doc.setTextColor(120,120,120);
+doc.text('Genere par Qashora - www.qashora.com',105,290,{align:'center'});
+};
+
+// PAGE 1: En-tête + Résumé + Cartes KPI
+await addHeader(1);
+
+// Titre section
 doc.setFillColor(217,70,239);
-doc.rect(14,52,182,8,'F');
+doc.rect(14,46,182,8,'F');
 doc.setFontSize(11);
 doc.setTextColor(255,255,255);
-doc.text('RESUME FINANCIER',105,58,{align:'center'});
+doc.text('RESUME FINANCIER',105,52,{align:'center'});
 
-const summaryData=[
-['Encaissements',formatNumber(st.deb)+' F'],
-['Decaissements',formatNumber(st.cre)+' F'],
-['Solde Net',formatNumber(st.sol)+' F'],
-['Suspens Net',formatNumber(st.susN)+' F'],
-['Transactions en attente',String(st.susC)],
-['Total Transactions',String(st.cnt)]
+// Cartes KPI en grille
+const kpiData=[
+{label:'Encaissements',value:formatNumber(st.deb)+' F',color:[217,70,239]},
+{label:'Decaissements',value:formatNumber(st.cre)+' F',color:[34,211,238]},
+{label:'Solde Net',value:formatNumber(st.sol)+' F',color:[16,185,129]},
+{label:'Suspens Net',value:formatNumber(st.susN)+' F',color:[245,158,11]},
+{label:'Transactions',value:String(st.cnt),color:[99,102,241]}
 ];
 
-doc.autoTable({
-body:summaryData,
-startY:63,
-theme:'plain',
-styles:{fontSize:11,cellPadding:5},
-columnStyles:{0:{fontStyle:'bold',textColor:[80,80,80]},1:{halign:'right',textColor:[50,50,50],fontStyle:'bold'}}
+let kpiY=58;
+const kpiWidth=35;
+const kpiHeight=25;
+const kpiGap=2;
+const kpiStartX=14;
+
+kpiData.forEach((kpi,i)=>{
+const x=kpiStartX+(kpiWidth+kpiGap)*i;
+doc.setFillColor(...kpi.color);
+doc.roundedRect(x,kpiY,kpiWidth,kpiHeight,3,3,'F');
+doc.setFontSize(7);
+doc.setTextColor(255,255,255);
+doc.text(kpi.label,x+kpiWidth/2,kpiY+7,{align:'center'});
+doc.setFontSize(9);
+doc.setFont(undefined,'bold');
+doc.text(kpi.value,x+kpiWidth/2,kpiY+17,{align:'center'});
+doc.setFont(undefined,'normal');
 });
 
 // Soldes par banque
-let currentY=doc.lastAutoTable.finalY+10;
+let currentY=kpiY+kpiHeight+12;
 doc.setFillColor(16,185,129);
-doc.rect(14,currentY,182,8,'F');
-doc.setFontSize(11);
+doc.rect(14,currentY,182,7,'F');
+doc.setFontSize(10);
 doc.setTextColor(255,255,255);
-doc.text('SOLDES PAR BANQUE',105,currentY+6,{align:'center'});
+doc.text('SOLDES PAR BANQUE',105,currentY+5,{align:'center'});
 
 const bankData=Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([nom,solde])=>[nom,formatNumber(solde)+' F',solde>=0?'Excedent':'Deficit']);
 doc.autoTable({
 head:[['Banque','Solde','Statut']],
 body:bankData,
-startY:currentY+11,
+startY:currentY+9,
 theme:'striped',
-headStyles:{fillColor:[100,100,100],textColor:[255,255,255],fontStyle:'bold'},
+headStyles:{fillColor:[80,80,80],textColor:[255,255,255],fontStyle:'bold',fontSize:9},
 columnStyles:{1:{halign:'right'},2:{halign:'center'}},
-bodyStyles:{fontSize:10}
+bodyStyles:{fontSize:9},
+margin:{left:14,right:14}
+});
+
+// Capturer les graphiques avec html2canvas
+const dashboardEl=document.getElementById('dashboard-charts');
+if(dashboardEl){
+try{
+// Capturer le conteneur des graphiques
+const canvas=await html2canvas(dashboardEl,{
+backgroundColor:'#0f172a',
+scale:2,
+logging:false,
+useCORS:true
+});
+
+// PAGE 2: Graphiques
+doc.addPage();
+await addHeader(2);
+
+doc.setFillColor(217,70,239);
+doc.rect(14,46,182,8,'F');
+doc.setFontSize(11);
+doc.setTextColor(255,255,255);
+doc.text('GRAPHIQUES',105,52,{align:'center'});
+
+// Ajouter l'image des graphiques
+const imgData=canvas.toDataURL('image/png');
+const imgWidth=180;
+const imgHeight=(canvas.height*imgWidth)/canvas.width;
+const maxHeight=220;
+const finalHeight=Math.min(imgHeight,maxHeight);
+
+doc.addImage(imgData,'PNG',15,58,imgWidth,finalHeight);
+addFooter();
+}catch(e){
+console.log('Erreur capture graphiques:',e);
+}
+}
+
+// PAGE 3 (si besoin): Détails mensuels
+const monthData=Object.entries(st.md).map(([mois,data])=>[mois,formatNumber(data.d)+' F',formatNumber(data.c)+' F',formatNumber(data.d-data.c)+' F']);
+if(monthData.length>0){
+doc.addPage();
+await addHeader(3);
+
+doc.setFillColor(245,158,11);
+doc.rect(14,46,182,8,'F');
+doc.setFontSize(11);
+doc.setTextColor(255,255,255);
+doc.text('EVOLUTION MENSUELLE',105,52,{align:'center'});
+
+doc.autoTable({
+head:[['Mois','Encaissements','Decaissements','Solde']],
+body:monthData,
+startY:58,
+theme:'striped',
+headStyles:{fillColor:[80,80,80],textColor:[255,255,255],fontStyle:'bold',fontSize:9},
+columnStyles:{1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}},
+bodyStyles:{fontSize:9},
+margin:{left:14,right:14}
 });
 
 // Répartition par nature
-currentY=doc.lastAutoTable.finalY+10;
-if(currentY>250){doc.addPage();currentY=20;}
+currentY=doc.lastAutoTable.finalY+12;
+const natureData=Object.entries(st.bn).map(([nature,montant])=>[nature,formatNumber(montant)+' F']);
+if(natureData.length>0){
 doc.setFillColor(34,211,238);
 doc.rect(14,currentY,182,8,'F');
 doc.setFontSize(11);
 doc.setTextColor(255,255,255);
 doc.text('REPARTITION PAR NATURE',105,currentY+6,{align:'center'});
 
-const natureData=Object.entries(st.bn).map(([nature,montant])=>[nature,formatNumber(montant)+' F']);
-if(natureData.length>0){
 doc.autoTable({
-head:[['Nature','Montant']],
+head:[['Nature','Montant Total']],
 body:natureData,
-startY:currentY+11,
+startY:currentY+10,
 theme:'striped',
-headStyles:{fillColor:[100,100,100],textColor:[255,255,255],fontStyle:'bold'},
+headStyles:{fillColor:[80,80,80],textColor:[255,255,255],fontStyle:'bold',fontSize:9},
 columnStyles:{1:{halign:'right'}},
-bodyStyles:{fontSize:10}
-});
-currentY=doc.lastAutoTable.finalY+10;
-}else{
-currentY+=20;
-}
-
-// Évolution mensuelle
-if(currentY>220){doc.addPage();currentY=20;}
-doc.setFillColor(245,158,11);
-doc.rect(14,currentY,182,8,'F');
-doc.setFontSize(11);
-doc.setTextColor(255,255,255);
-doc.text('EVOLUTION MENSUELLE',105,currentY+6,{align:'center'});
-
-const monthData=Object.entries(st.md).map(([mois,data])=>[mois,formatNumber(data.d)+' F',formatNumber(data.c)+' F',formatNumber(data.d-data.c)+' F']);
-if(monthData.length>0){
-doc.autoTable({
-head:[['Mois','Encaissements','Decaissements','Solde']],
-body:monthData,
-startY:currentY+11,
-theme:'striped',
-headStyles:{fillColor:[100,100,100],textColor:[255,255,255],fontStyle:'bold'},
-columnStyles:{1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}},
-bodyStyles:{fontSize:10}
+bodyStyles:{fontSize:9},
+margin:{left:14,right:14}
 });
 }
-
-// Pied de page
-const pageCount=doc.internal.getNumberOfPages();
-for(let i=1;i<=pageCount;i++){
-doc.setPage(i);
-doc.setFontSize(8);
-doc.setTextColor(150,150,150);
-doc.text('Page '+i+'/'+pageCount,105,290,{align:'center'});
-doc.text('Genere par Qashora',14,290);
+addFooter();
 }
 
-doc.save('dashboard_'+(orgName||'qashora')+'_'+now.toISOString().split('T')[0]+'.pdf');
+// Ajouter pied de page sur page 1
+doc.setPage(1);
+addFooter();
+
+doc.save('tableau_bord_'+(orgName||'qashora')+'_'+now.toISOString().split('T')[0]+'.pdf');
 };
 
 if(banques.length===0)return(<div className="animate-fade-in pt-16 md:pt-0"><div className="glass rounded-2xl p-8 text-center"><div className="text-6xl mb-4">🏦</div><h2 className="text-2xl font-bold text-surface-100 mb-2">Bienvenue sur Qashora !</h2><p className="text-surface-400 mb-6">Pour commencer, ajoutez vos banques dans les paramètres.</p><Button onClick={()=>onNavigate('config')} icon="⚙️" size="lg">Configurer mes banques</Button></div></div>);
@@ -895,7 +945,7 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 </div></div>
 
 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4"><StatCard icon="💰" label="Encaissements" value={fmt(st.deb)+' F'} gradient="gradient-primary"/><StatCard icon="📤" label="Décaissements" value={fmt(st.cre)+' F'} gradient="gradient-secondary"/><StatCard icon="📊" label="Solde Net" value={fmt(st.sol)+' F'} subvalue={st.sol>=0?'Excédent':'Déficit'} gradient={st.sol>=0?"gradient-success":"gradient-danger"}/><StatCard icon="⏳" label="Suspens Net" value={fmt(st.susN)+' F'} subvalue={st.susC+' en attente'} gradient="gradient-warning" onClick={()=>onNavigate('transactions')}/><StatCard icon="📋" label="Transactions" value={st.cnt} subvalue="actives" gradient="gradient-indigo" onClick={()=>onNavigate('transactions')}/></div>
-{filtered.length>0?(<><div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><ChartC type="bar" data={bar} title="Évolution Mensuelle"/><ChartC type="line" data={line} title="Solde Cumulé"/></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-5"><ChartC type="doughnut" data={donut} title="Par Nature"/><div className="lg:col-span-2"><ChartC type="bar" data={top} title="Top Banques" options={{indexAxis:'y'}}/></div></div></>):(<div className="glass rounded-xl p-8 text-center"><p className="text-surface-400">Aucune transaction pour cette période.</p><Button onClick={()=>onNavigate('transactions')} className="mt-4" icon="➕">Nouvelle transaction</Button></div>)}
+{filtered.length>0?(<div id="dashboard-charts"><div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><ChartC type="bar" data={bar} title="Évolution Mensuelle"/><ChartC type="line" data={line} title="Solde Cumulé"/></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-5"><ChartC type="doughnut" data={donut} title="Par Nature"/><div className="lg:col-span-2"><ChartC type="bar" data={top} title="Top Banques" options={{indexAxis:'y'}}/></div></div></div>):(<div className="glass rounded-xl p-8 text-center"><p className="text-surface-400">Aucune transaction pour cette période.</p><Button onClick={()=>onNavigate('transactions')} className="mt-4" icon="➕">Nouvelle transaction</Button></div>)}
 {Object.keys(st.sb).length>0&&(<div className="glass rounded-xl p-4"><h2 className="text-lg font-bold text-surface-100 mb-4">🏦 Soldes par Banque</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-2">{Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([b,s])=>(<div key={b} className={cn('p-3 rounded-lg border',s>=0?'bg-emerald-500/10 border-emerald-500/30':'bg-red-500/10 border-red-500/30')}><p className="text-xs text-surface-400 truncate">{b}</p><p className={cn('text-base font-mono font-bold',s>=0?'text-emerald-400':'text-red-400')}>{fmt(s)}</p></div>))}</div></div>)}
 </div>);};
 

@@ -478,7 +478,8 @@ const useData=(organisationId)=>{
                 nom:oRes.data?.nom||'',
                 adresse:oRes.data?.adresse||'',
                 telephone:oRes.data?.telephone||'',
-                activite:oRes.data?.activite||''
+                activite:oRes.data?.activite||'',
+                logo_url:oRes.data?.logo_url||''
             });
             const p={pays:[],natures:[],statuts:[]};
             (pRes.data||[]).forEach(x=>{if(x.type==='pays')p.pays.push(x.valeur);else if(x.type==='nature')p.natures.push(x.valeur);else if(x.type==='statut')p.statuts.push(x.valeur);});
@@ -544,10 +545,46 @@ const useData=(organisationId)=>{
             activite:data.activite
         }).eq('id',organisationId);
         if(error)throw error;
-        setOrganisation(data);
+        setOrganisation(prev=>({...prev,...data}));
     };
 
-    return{banques,trans,users,params,abonnement,organisation,loading,error,reload:loadAll,addBanque,updateBanque,deleteBanque,addTrans,updateTrans,deleteTrans,restoreTrans,permDeleteTrans,addUser,updateUser,deleteUser,resetPassword,addParam,updateParam,deleteParam,getPlanLimites,checkLimite,canExportPDF,getJoursRestants,updateOrganisation};
+    // Upload logo
+    const uploadLogo=async(file)=>{
+        if(!file)return;
+        // Vérifier le type
+        if(!file.type.startsWith('image/')){throw new Error('Le fichier doit être une image');}
+        // Vérifier la taille (max 2MB)
+        if(file.size>2*1024*1024){throw new Error('Le fichier ne doit pas dépasser 2 Mo');}
+        
+        const fileExt=file.name.split('.').pop();
+        const fileName=`${organisationId}_logo.${fileExt}`;
+        const filePath=`logos/${fileName}`;
+        
+        // Upload vers Supabase Storage
+        const{error:uploadError}=await supabase.storage.from('logos').upload(filePath,file,{upsert:true});
+        if(uploadError)throw uploadError;
+        
+        // Obtenir l'URL publique
+        const{data:urlData}=supabase.storage.from('logos').getPublicUrl(filePath);
+        const logoUrl=urlData.publicUrl+'?t='+Date.now();
+        
+        // Mettre à jour l'organisation
+        const{error:updateError}=await supabase.from('organisations').update({logo_url:logoUrl}).eq('id',organisationId);
+        if(updateError)throw updateError;
+        
+        setOrganisation(prev=>({...prev,logo_url:logoUrl}));
+        return logoUrl;
+    };
+
+    // Supprimer logo
+    const deleteLogo=async()=>{
+        // Supprimer de la base
+        const{error}=await supabase.from('organisations').update({logo_url:null}).eq('id',organisationId);
+        if(error)throw error;
+        setOrganisation(prev=>({...prev,logo_url:''}));
+    };
+
+    return{banques,trans,users,params,abonnement,organisation,loading,error,reload:loadAll,addBanque,updateBanque,deleteBanque,addTrans,updateTrans,deleteTrans,restoreTrans,permDeleteTrans,addUser,updateUser,deleteUser,resetPassword,addParam,updateParam,deleteParam,getPlanLimites,checkLimite,canExportPDF,getJoursRestants,updateOrganisation,uploadLogo,deleteLogo};
 };
 
 // ===== PAGE LOGIN =====
@@ -649,13 +686,18 @@ return(<div className="min-h-screen flex items-center justify-center relative ov
 };
 
 // ===== SIDEBAR RESPONSIVE =====
-const Side=({page,nav,user,logout,isOpen,toggle,isSuperAdmin,orgName})=>{
+const Side=({page,nav,user,logout,isOpen,toggle,isSuperAdmin,orgName,logoUrl})=>{
 const items=[{id:'dashboard',label:'Tableau de bord',icon:'📊'},{id:'transactions',label:'Transactions',icon:'📋'},{id:'soldes',label:'Soldes',icon:'🏦'},...(user?.role==='Admin'?[{id:'users',label:'Utilisateurs',icon:'👥'},{id:'corbeille',label:'Corbeille',icon:'🗑️'}]:[]),{id:'config',label:'Configuration',icon:'🔧'},{id:'parametres',label:'Paramètres',icon:'⚙️'},...(isSuperAdmin?[{id:'admin',label:'Admin',icon:'🛡️'}]:[])];
 const roleInfo=ROLES[user?.role]||ROLES.User;
-return(<><div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-900/95 backdrop-blur-xl border-b border-surface-800 z-50 flex items-center justify-between px-4"><button onClick={toggle} className="p-2 hover:bg-surface-800 rounded-lg text-xl">☰</button><div className="flex items-center gap-2"><div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">{orgName?.charAt(0)||'Q'}</div><span className="font-bold text-surface-100 truncate max-w-[150px]">{orgName||'Qashora'}</span></div><div className="w-8"/></div>
+const LogoDisplay=({size='md'})=>{
+const sizes={sm:'w-8 h-8 text-sm',md:'w-12 h-12 text-xl'};
+if(logoUrl)return <img src={logoUrl} alt="Logo" className={cn(sizes[size],'rounded-xl object-cover')}/>;
+return <div className={cn(sizes[size],'gradient-primary rounded-xl flex items-center justify-center text-white font-bold shadow-lg',size==='md'&&'animate-glow')}>{orgName?.charAt(0)||'Q'}</div>;
+};
+return(<><div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-900/95 backdrop-blur-xl border-b border-surface-800 z-50 flex items-center justify-between px-4"><button onClick={toggle} className="p-2 hover:bg-surface-800 rounded-lg text-xl">☰</button><div className="flex items-center gap-2"><LogoDisplay size="sm"/><span className="font-bold text-surface-100 truncate max-w-[150px]">{orgName||'Qashora'}</span></div><div className="w-8"/></div>
 {isOpen&&<div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={toggle}/>}
 <aside className={cn('sidebar fixed left-0 top-0 h-screen w-64 bg-surface-900/95 backdrop-blur-xl border-r border-surface-800 flex flex-col z-50 transition-transform md:translate-x-0',isOpen?'open':'')}>
-<div className="p-5 border-b border-surface-800"><div className="flex items-center gap-3"><div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg animate-glow">{orgName?.charAt(0)||'Q'}</div><div className="flex-1 min-w-0"><h1 className="text-lg font-bold text-surface-100 truncate" title={orgName}>{orgName||'Mon Entreprise'}</h1><p className="text-xs text-surface-500">Propulsé par <span className="text-primary-400">Qashora</span></p></div></div></div>
+<div className="p-5 border-b border-surface-800"><div className="flex items-center gap-3"><LogoDisplay size="md"/><div className="flex-1 min-w-0"><h1 className="text-lg font-bold text-surface-100 truncate" title={orgName}>{orgName||'Mon Entreprise'}</h1><p className="text-xs text-surface-500">Propulsé par <span className="text-primary-400">Qashora</span></p></div></div></div>
 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">{items.map(i=>(<button key={i.id} onClick={()=>{nav(i.id);toggle?.();}} className={cn('nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative',page===i.id?'bg-gradient-to-r from-primary-600/20 to-secondary-600/20 text-primary-400 border border-primary-500/30':'text-surface-400 hover:bg-surface-800 hover:text-surface-200')}><span className="text-lg">{i.icon}</span><span className="font-medium">{i.label}</span></button>))}</nav>
 <div className="p-4 border-t border-surface-800"><div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold">{user?.username?.charAt(0).toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium text-surface-200 truncate">{user?.username}</p><p className="text-xs text-surface-500 flex items-center gap-1"><span>{roleInfo.icon}</span>{roleInfo.label}</p></div></div><Button variant="ghost" className="w-full justify-start" onClick={logout} icon="🚪">Déconnexion</Button></div></aside></>);};
 
@@ -694,26 +736,54 @@ const doc=new jsPDF('portrait');
 const now=new Date();
 const dateExport=now.toLocaleDateString('fr-FR')+' à '+now.toLocaleTimeString('fr-FR');
 const periode=d1&&d2?`du ${fmtD(d1)} au ${fmtD(d2)}`:year?`Année ${year}`:'Toutes périodes';
+const logoUrl=organisation?.logo_url;
 
-// En-tête
+// En-tête avec fond
 doc.setFillColor(24,24,27);
-doc.rect(0,0,210,40,'F');
-doc.setFontSize(20);
+doc.rect(0,0,210,45,'F');
+
+// Logo si disponible
+let logoX=14;
+if(logoUrl){
+try{
+const img=new Image();
+img.crossOrigin='anonymous';
+await new Promise((resolve,reject)=>{
+img.onload=resolve;
+img.onerror=reject;
+img.src=logoUrl;
+});
+doc.addImage(img,'JPEG',14,8,28,28);
+logoX=48;
+}catch(e){console.log('Logo non chargé');}
+}
+
+// Titre et nom organisation
+doc.setFontSize(18);
 doc.setTextColor(217,70,239);
-doc.text('Tableau de Bord',14,20);
-if(orgName){doc.setFontSize(14);doc.setTextColor(255,255,255);doc.text(orgName,14,30);}
+doc.text('Tableau de Bord',logoX,18);
+if(orgName){
+doc.setFontSize(14);
+doc.setTextColor(255,255,255);
+doc.text(orgName,logoX,28);
+}
+if(organisation?.activite){
+doc.setFontSize(10);
+doc.setTextColor(180,180,180);
+doc.text(organisation.activite,logoX,36);
+}
 
 // Info export
 doc.setFontSize(9);
 doc.setTextColor(150,150,150);
-doc.text(`Exporté le ${dateExport}`,196,15,{align:'right'});
-doc.text(`Par: ${user?.username||'Admin'}`,196,22,{align:'right'});
-doc.text(`Période: ${periode}`,196,29,{align:'right'});
+doc.text(`Exporté le ${dateExport}`,196,12,{align:'right'});
+doc.text(`Par: ${user?.username||'Admin'}`,196,19,{align:'right'});
+doc.text(`Période: ${periode}`,196,26,{align:'right'});
 
 // Résumé financier
 doc.setFontSize(14);
 doc.setTextColor(50,50,50);
-doc.text('📊 Résumé Financier',14,52);
+doc.text('📊 Résumé Financier',14,57);
 
 const summaryData=[
 ['Encaissements',formatNumber(st.deb)+' F'],
@@ -726,7 +796,7 @@ const summaryData=[
 
 doc.autoTable({
 body:summaryData,
-startY:58,
+startY:63,
 theme:'plain',
 styles:{fontSize:11,cellPadding:4},
 columnStyles:{0:{fontStyle:'bold',textColor:[100,100,100]},1:{halign:'right',textColor:[50,50,50]}}
@@ -1215,7 +1285,7 @@ return(<form onSubmit={go} className="space-y-4"><Input label="Nom de la banque"
 
 // ===== PAGE PARAMETRES (Abonnement + Backup + Infos) =====
 const Parametres=({data,user,showToast})=>{
-const{abonnement,getJoursRestants,banques,trans,users,params,organisation,getPlanLimites,updateOrganisation}=data;
+const{abonnement,getJoursRestants,banques,trans,users,params,organisation,getPlanLimites,updateOrganisation,uploadLogo,deleteLogo}=data;
 const orgName=organisation?.nom||'';
 const[tab,setTab]=useState('abonnement');
 const[selectedPlan,setSelectedPlan]=useState(null);
@@ -1223,6 +1293,7 @@ const[showContactModal,setShowContactModal]=useState(false);
 const[editOrg,setEditOrg]=useState(false);
 const[orgForm,setOrgForm]=useState({nom:'',adresse:'',telephone:'',activite:''});
 const[savingOrg,setSavingOrg]=useState(false);
+const[uploadingLogo,setUploadingLogo]=useState(false);
 const joursRestants=getJoursRestants();
 const planActuel=PLANS[abonnement?.plan||'trial'];
 const isExpire=abonnement?.isExpire||joursRestants<=0;
@@ -1254,6 +1325,32 @@ setEditOrg(false);
 showToast?.('Informations mises à jour','success');
 }catch(e){showToast?.('Erreur: '+e.message,'error');}
 setSavingOrg(false);
+};
+
+// Gérer l'upload du logo
+const handleLogoUpload=async(e)=>{
+const file=e.target.files?.[0];
+if(!file)return;
+setUploadingLogo(true);
+try{
+await uploadLogo(file);
+showToast?.('Logo mis à jour','success');
+}catch(err){
+showToast?.('Erreur: '+err.message,'error');
+}
+setUploadingLogo(false);
+e.target.value='';
+};
+
+// Supprimer le logo
+const handleDeleteLogo=async()=>{
+if(!confirm('Supprimer le logo ?'))return;
+try{
+await deleteLogo();
+showToast?.('Logo supprimé','success');
+}catch(err){
+showToast?.('Erreur: '+err.message,'error');
+}
 };
 
 // Backup Excel
@@ -1427,7 +1524,11 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 ):(
 <div className="space-y-4">
 <div className="flex items-center gap-4 p-4 bg-surface-800 rounded-xl">
+{organisation?.logo_url?(
+<img src={organisation.logo_url} alt="Logo" className="w-16 h-16 rounded-xl object-cover border-2 border-primary-500/30"/>
+):(
 <div className="w-16 h-16 gradient-primary rounded-xl flex items-center justify-center text-white text-2xl font-bold">{orgName?.charAt(0)||'?'}</div>
+)}
 <div className="flex-1">
 <p className="text-xl font-bold text-surface-100">{orgName||'Non défini'}</p>
 {organisation?.activite&&<p className="text-sm text-primary-400">{organisation.activite}</p>}
@@ -1441,6 +1542,38 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 <div className="p-4 bg-surface-800 rounded-xl">
 <p className="text-xs text-surface-400 mb-1">📞 Téléphone</p>
 <p className="text-surface-200">{organisation?.telephone||'Non défini'}</p>
+</div>
+</div>
+</div>
+)}
+</div>
+
+{/* Section Logo */}
+{canEdit&&(
+<div className="glass rounded-2xl p-6">
+<h2 className="text-lg font-bold text-surface-100 mb-4">🖼️ Logo de l'organisation</h2>
+<div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+<div className="flex-shrink-0">
+{organisation?.logo_url?(
+<img src={organisation.logo_url} alt="Logo" className="w-32 h-32 rounded-2xl object-cover border-2 border-surface-600 shadow-lg"/>
+):(
+<div className="w-32 h-32 bg-surface-800 rounded-2xl flex items-center justify-center border-2 border-dashed border-surface-600">
+<span className="text-4xl text-surface-500">📷</span>
+</div>
+)}
+</div>
+<div className="flex-1 space-y-3">
+<p className="text-sm text-surface-400">Le logo sera affiché dans l'application et sur les exports PDF. Format recommandé : carré, PNG ou JPG, max 2 Mo.</p>
+<div className="flex flex-wrap gap-3">
+<label className={cn('cursor-pointer px-4 py-2 rounded-xl font-medium transition-all flex items-center gap-2',uploadingLogo?'bg-surface-700 text-surface-400':'gradient-primary text-white hover:shadow-lg')}>
+<span>{uploadingLogo?'⏳':'📤'}</span>
+<span>{uploadingLogo?'Envoi...':organisation?.logo_url?'Changer le logo':'Ajouter un logo'}</span>
+<input type="file" accept="image/*" onChange={handleLogoUpload} disabled={uploadingLogo} className="hidden"/>
+</label>
+{organisation?.logo_url&&(
+<Button variant="danger" onClick={handleDeleteLogo} icon="🗑️" size="sm">Supprimer</Button>
+)}
+</div>
 </div>
 </div>
 </div>
@@ -1820,7 +1953,7 @@ if(data.loading)return(<div className="min-h-screen flex items-center justify-ce
 if(data.error)return(<div className="min-h-screen flex items-center justify-center p-4"><Alert type="error" message={'Erreur: '+data.error}/></div>);
 
 return(<div className="min-h-screen bg-surface-950">
-<Side page={page} nav={setPage} user={user} logout={handleLogout} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin} orgName={data.organisation?.nom}/>
+<Side page={page} nav={setPage} user={user} logout={handleLogout} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin} orgName={data.organisation?.nom} logoUrl={data.organisation?.logo_url}/>
 <main className="main-content md:ml-64 p-4 md:p-8">
 {page==='dashboard'&&<Dashboard trans={data.trans} banques={data.banques} onNavigate={setPage} organisation={data.organisation} user={user}/>}
 {page==='transactions'&&<Transactions data={data} user={user} showToast={showToast}/>}

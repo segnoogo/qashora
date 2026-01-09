@@ -633,7 +633,7 @@ return(<div className="min-h-screen flex items-center justify-center relative ov
 
 // ===== SIDEBAR RESPONSIVE =====
 const Side=({page,nav,user,logout,isOpen,toggle,isSuperAdmin,orgName})=>{
-const items=[{id:'dashboard',label:'Tableau de bord',icon:'📊'},{id:'transactions',label:'Transactions',icon:'📋'},{id:'soldes',label:'Soldes',icon:'🏦'},...(user?.role==='Admin'?[{id:'users',label:'Utilisateurs',icon:'👥'},{id:'corbeille',label:'Corbeille',icon:'🗑️'}]:[]),{id:'abonnement',label:'Abonnement',icon:'💎'},{id:'settings',label:'Paramètres',icon:'⚙️'},...(isSuperAdmin?[{id:'admin',label:'Admin',icon:'🛡️'}]:[])];
+const items=[{id:'dashboard',label:'Tableau de bord',icon:'📊'},{id:'transactions',label:'Transactions',icon:'📋'},{id:'soldes',label:'Soldes',icon:'🏦'},...(user?.role==='Admin'?[{id:'users',label:'Utilisateurs',icon:'👥'},{id:'corbeille',label:'Corbeille',icon:'🗑️'}]:[]),{id:'config',label:'Configuration',icon:'🔧'},{id:'parametres',label:'Paramètres',icon:'⚙️'},...(isSuperAdmin?[{id:'admin',label:'Admin',icon:'🛡️'}]:[])];
 const roleInfo=ROLES[user?.role]||ROLES.User;
 return(<><div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-900/95 backdrop-blur-xl border-b border-surface-800 z-50 flex items-center justify-between px-4"><button onClick={toggle} className="p-2 hover:bg-surface-800 rounded-lg text-xl">☰</button><div className="flex items-center gap-2"><div className="w-8 h-8 gradient-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">{orgName?.charAt(0)||'Q'}</div><span className="font-bold text-surface-100 truncate max-w-[150px]">{orgName||'Qashora'}</span></div><div className="w-8"/></div>
 {isOpen&&<div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={toggle}/>}
@@ -945,8 +945,8 @@ const rest=async t=>{if(confirm('Restaurer?')){setLoading(t.id);try{await restor
 const rm=async t=>{if(confirm('Supprimer définitivement?')){setLoading(t.id);try{await permDeleteTrans(t.id);showToast?.('Transaction supprimée','success');}catch(e){showToast?.('Erreur: '+e.message,'error');}setLoading(null);}};
 return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0"><div className="flex items-center justify-between"><div><h1 className="text-2xl font-bold text-surface-100">Corbeille</h1><p className="text-surface-400 mt-1">{del.length} élément(s)</p></div></div>{del.length===0?<div className="glass rounded-xl p-12"><Empty icon="🗑️" title="Corbeille vide" desc="Les transactions supprimées apparaîtront ici"/></div>:(<div className="glass rounded-xl overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-surface-800"><tr className="text-left text-xs text-surface-400"><th className="px-3 md:px-4 py-3">Supprimé le</th><th className="px-3 md:px-4 py-3 hidden md:table-cell">Par</th><th className="px-3 md:px-4 py-3">N°</th><th className="px-3 md:px-4 py-3">Désignation</th><th className="px-3 md:px-4 py-3 text-right">Montant</th><th className="px-3 md:px-4 py-3">Actions</th></tr></thead><tbody className="divide-y divide-surface-800">{del.map(t=>(<tr key={t.id} className="table-row"><td className="px-3 md:px-4 py-3 font-mono text-surface-400 text-xs">{fmtD(t.deletedAt)}</td><td className="px-3 md:px-4 py-3 text-surface-300 text-xs hidden md:table-cell">{t.deletedBy||'-'}</td><td className="px-3 md:px-4 py-3 font-mono text-surface-400 text-xs">{t.numero}</td><td className="px-3 md:px-4 py-3 text-surface-300 truncate max-w-[150px] text-xs">{t.designation}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-xs">{t.debit&&parseFloat(t.debit)>0?<span className="text-emerald-400">{fmt(t.debit)}</span>:<span className="text-secondary-400">{fmt(t.credit)}</span>}</td><td className="px-3 md:px-4 py-3">{loading===t.id?<div className="loader" style={{width:20,height:20}}></div>:<div className="flex gap-1"><button onClick={()=>rest(t)} className="p-1.5 hover:bg-surface-700 rounded text-surface-400 hover:text-emerald-400">🔄</button><button onClick={()=>rm(t)} className="p-1.5 hover:bg-surface-700 rounded text-surface-400 hover:text-red-400">🗑️</button></div>}</td></tr>))}</tbody></table></div></div>)}</div>);};
 
-// ===== PAGE PARAMETRES =====
-const Settings=({data,user,showToast})=>{const{banques,params,addBanque,updateBanque,deleteBanque,addParam,updateParam,deleteParam,checkLimite,getPlanLimites}=data;
+// ===== PAGE CONFIGURATION (anciennement Paramètres) =====
+const Config=({data,user,showToast})=>{const{banques,params,addBanque,updateBanque,deleteBanque,addParam,updateParam,deleteParam,checkLimite,getPlanLimites}=data;
 const[tab,setTab]=useState(()=>{
 // Récupérer l'onglet sauvegardé ou 'banques' par défaut
 return sessionStorage.getItem('settings_tab')||'banques';
@@ -1084,31 +1084,109 @@ const BanqueForm=({banque,pays,onSave,onCancel,saving})=>{const[d,setD]=useState
 const go=e=>{e.preventDefault();if(!d.nom){alert('Le nom est obligatoire');return;}onSave({...d,soldeOuverture:parse(d.soldeOuverture)});};
 return(<form onSubmit={go} className="space-y-4"><Input label="Nom de la banque" value={d.nom} onChange={e=>setD(p=>({...p,nom:e.target.value}))} placeholder="Ex: CORIS BANK, BOA..." required/><Input label="Numéro de compte" value={d.numeroCompte} onChange={e=>setD(p=>({...p,numeroCompte:e.target.value}))} placeholder="Ex: BF001-2024-1234"/><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Gestionnaire" value={d.gestionnaire} onChange={e=>setD(p=>({...p,gestionnaire:e.target.value}))} placeholder="Nom"/><Input label="Contact" value={d.contact} onChange={e=>setD(p=>({...p,contact:e.target.value}))} placeholder="+226 70 00 00 00"/></div><Select label="Pays" value={d.pays} onChange={e=>setD(p=>({...p,pays:e.target.value}))} options={pays}/><div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/30"><Input label="💰 Solde d'ouverture (F CFA)" value={String(d.soldeOuverture)} onChange={e=>setD(p=>({...p,soldeOuverture:e.target.value}))} placeholder="Ex: 5000000"/><p className="text-xs text-emerald-400 mt-2">Solde initial du compte</p></div><div className="flex justify-end gap-3 pt-4 border-t border-surface-700"><Button variant="secondary" onClick={onCancel}>Annuler</Button><Button type="submit" loading={saving}>{banque?'Modifier':'Ajouter'}</Button></div></form>);};
 
-// ===== PAGE ABONNEMENT =====
-const AbonnementPage=({data,showToast})=>{
-const{abonnement,getJoursRestants}=data;
+// ===== PAGE PARAMETRES (Abonnement + Backup + Infos) =====
+const Parametres=({data,user,showToast})=>{
+const{abonnement,getJoursRestants,banques,trans,users,params,orgName,getPlanLimites}=data;
+const[tab,setTab]=useState('abonnement');
 const[selectedPlan,setSelectedPlan]=useState(null);
 const[showContactModal,setShowContactModal]=useState(false);
 const joursRestants=getJoursRestants();
 const planActuel=PLANS[abonnement?.plan||'trial'];
 const isExpire=abonnement?.isExpire||joursRestants<=0;
+const limites=getPlanLimites();
 
 const handleSelectPlan=(planKey)=>{if(planKey===abonnement?.plan&&!isExpire)return;setSelectedPlan(planKey);setShowContactModal(true);};
 const getWhatsAppLink=()=>{if(!selectedPlan)return'#';const plan=PLANS[selectedPlan];if(!plan)return'#';const message=encodeURIComponent(`Bonjour! Je souhaite souscrire au plan ${plan.nom} de Qashora.\n💰 Montant: ${plan.prix.toLocaleString()} FCFA/mois`);return`https://wa.me/${WHATSAPP_CONTACT.replace('+','')}?text=${message}`;};
 
-return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
-<div><h1 className="text-2xl font-bold text-surface-100">💎 Abonnement</h1><p className="text-surface-400 mt-1">Gérez votre plan</p></div>
+// Backup Excel
+const backupExcel=()=>{
+const XLSX=window.XLSX;
+const wb=XLSX.utils.book_new();
 
-<div className="glass rounded-2xl p-6 border-2 border-primary-500/30">
+// Feuille Banques
+if(banques.length>0){
+const bData=[['Nom','N° Compte','Gestionnaire','Contact','Pays','Solde Ouverture'],...banques.map(b=>[b.nom,b.numero_compte||'',b.gestionnaire||'',b.contact||'',b.pays||'',b.solde_ouverture||0])];
+const wsB=XLSX.utils.aoa_to_sheet(bData);
+XLSX.utils.book_append_sheet(wb,wsB,'Banques');
+}
+
+// Feuille Transactions
+const transActives=trans.filter(t=>!t.deletedAt);
+if(transActives.length>0){
+const tData=[['Date','Banque','N°','Nature','Désignation','Bénéficiaire','Débit','Crédit','Statut'],...transActives.map(t=>[t.date,t.banqueNom,t.numero,t.nature,t.designation||'',t.beneficiaire||'',t.debit||0,t.credit||0,t.statut])];
+const wsT=XLSX.utils.aoa_to_sheet(tData);
+XLSX.utils.book_append_sheet(wb,wsT,'Transactions');
+}
+
+// Feuille Utilisateurs
+if(users.length>0){
+const uData=[['Nom','Email','Rôle'],...users.map(u=>[u.username,u.email||'',u.role])];
+const wsU=XLSX.utils.aoa_to_sheet(uData);
+XLSX.utils.book_append_sheet(wb,wsU,'Utilisateurs');
+}
+
+XLSX.writeFile(wb,'backup_'+orgName+'_'+new Date().toISOString().split('T')[0]+'.xlsx');
+showToast?.('Backup Excel téléchargé','success');
+};
+
+// Backup JSON
+const backupJSON=()=>{
+const backup={
+organisation:orgName,
+date_export:new Date().toISOString(),
+banques:banques,
+transactions:trans.filter(t=>!t.deletedAt),
+utilisateurs:users.map(u=>({username:u.username,email:u.email,role:u.role})),
+parametres:params
+};
+const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+const a=document.createElement('a');
+a.href=URL.createObjectURL(blob);
+a.download='backup_'+orgName+'_'+new Date().toISOString().split('T')[0]+'.json';
+a.click();
+showToast?.('Backup JSON téléchargé','success');
+};
+
+const tabs=[
+{id:'abonnement',label:'Abonnement',icon:'💎'},
+{id:'backup',label:'Sauvegarde',icon:'💾'},
+{id:'infos',label:'Informations',icon:'🏢'}
+];
+
+return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
+<div><h1 className="text-2xl font-bold text-surface-100">⚙️ Paramètres</h1><p className="text-surface-400 mt-1">Gérez votre abonnement et vos données</p></div>
+
+{/* Onglets */}
+<div className="flex gap-2 flex-wrap">
+{tabs.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} className={cn('px-4 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2',tab===t.id?'gradient-primary text-white shadow-lg':'glass text-surface-400 hover:text-surface-200')}><span>{t.icon}</span>{t.label}</button>))}
+</div>
+
+{/* Onglet Abonnement */}
+{tab==='abonnement'&&(<div className="space-y-6">
+<div className="glass rounded-2xl p-6">
+<div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
 <div className="flex items-center gap-4">
 <div className={cn('w-16 h-16 rounded-2xl flex items-center justify-center text-3xl shadow-lg',planActuel.gradient)}>{planActuel.icon}</div>
-<div><p className="text-sm text-surface-400">Plan actuel</p><p className="text-xl font-bold text-surface-100">{planActuel.nom}</p>
-{abonnement?.plan==='trial'&&<p className={cn('text-sm',isExpire?'text-red-400':'text-amber-400')}>{isExpire?'⚠️ Expiré':`⏳ ${joursRestants} jours`}</p>}
-{abonnement?.plan!=='trial'&&abonnement?.date_fin&&<p className={cn('text-sm',isExpire?'text-red-400':'text-emerald-400')}>{isExpire?'⚠️ Expiré':`✅ Jusqu'au ${fmtD(abonnement.date_fin)}`}</p>}
+<div><p className="text-sm text-surface-400">Plan actuel</p><p className="text-2xl font-bold text-surface-100">{planActuel.nom}</p></div>
+</div>
+<div className="text-center md:text-right">
+<p className="text-sm text-surface-400">Expire dans</p>
+<p className={cn('text-2xl font-bold',isExpire?'text-red-400':joursRestants<=7?'text-amber-400':'text-emerald-400')}>{isExpire?'Expiré':`${joursRestants} jours`}</p>
+{abonnement?.date_fin&&<p className="text-xs text-surface-500">{fmtD(abonnement.date_fin)}</p>}
+</div>
+<div>
+<p className="text-sm text-surface-400 mb-2">Limites</p>
+<div className="space-y-1 text-sm">
+<p className="text-surface-300">🏦 {limites.banques===999?'∞':limites.banques} banques</p>
+<p className="text-surface-300">📋 {limites.transactions===999?'∞':limites.transactions} transactions</p>
+<p className="text-surface-300">👥 {limites.utilisateurs===999?'∞':limites.utilisateurs} utilisateurs</p>
+<p className="text-surface-300">📄 PDF {limites.exportPDF?'✅':'❌'}</p>
+</div>
 </div>
 </div>
 </div>
 
+<h2 className="text-lg font-bold text-surface-100">📋 Choisir un plan</h2>
 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 {Object.entries(PLANS).map(([key,plan])=>(<div key={key} className={cn('glass rounded-3xl overflow-hidden transition-all hover:shadow-2xl',abonnement?.plan===key&&!isExpire?'ring-2 ring-primary-500':'')}>
 <div className={cn('p-6 text-white',plan.gradient)}><div className="flex justify-between items-start"><div><p className="text-white/80 text-sm">Plan</p><h3 className="text-2xl font-bold">{plan.nom}</h3></div><span className="text-3xl">{plan.icon}</span></div><div className="mt-4"><span className="text-4xl font-bold">{plan.prix>0?fmt(plan.prix):'Gratuit'}</span>{plan.prix>0&&<span className="text-white/80 ml-2">FCFA/mois</span>}</div></div>
@@ -1116,6 +1194,92 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 <button onClick={()=>handleSelectPlan(key)} disabled={(abonnement?.plan===key&&!isExpire)||key==='trial'} className={cn('w-full mt-6 py-3 rounded-xl font-bold transition-all',(abonnement?.plan===key&&!isExpire)||key==='trial'?'bg-surface-700 text-surface-400 cursor-not-allowed':'gradient-primary text-white hover:shadow-lg')}>{abonnement?.plan===key&&!isExpire?'✓ Plan actuel':key==='trial'?'Essai':'Choisir'}</button>
 </div></div>))}
 </div>
+</div>)}
+
+{/* Onglet Sauvegarde */}
+{tab==='backup'&&(<div className="space-y-6">
+<div className="glass rounded-2xl p-6">
+<h2 className="text-lg font-bold text-surface-100 mb-2">💾 Sauvegarde des données</h2>
+<p className="text-surface-400 text-sm mb-6">Téléchargez une copie de toutes vos données</p>
+
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<button onClick={backupExcel} className="flex items-center gap-4 p-5 bg-surface-800 hover:bg-surface-700 rounded-xl border border-surface-700 transition-all group">
+<div className="w-12 h-12 bg-emerald-500/20 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📊</div>
+<div className="text-left">
+<p className="font-bold text-surface-100">Backup Excel (.xlsx)</p>
+<p className="text-xs text-surface-400">Chaque table dans un onglet séparé</p>
+</div>
+</button>
+<button onClick={backupJSON} className="flex items-center gap-4 p-5 bg-surface-800 hover:bg-surface-700 rounded-xl border border-surface-700 transition-all group">
+<div className="w-12 h-12 bg-amber-500/20 rounded-xl flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">📁</div>
+<div className="text-left">
+<p className="font-bold text-surface-100">Backup JSON (complet)</p>
+<p className="text-xs text-surface-400">Toutes les données brutes</p>
+</div>
+</button>
+</div>
+
+<div className="mt-6 p-4 bg-surface-800/50 rounded-xl border border-surface-700">
+<p className="text-xs text-surface-400">💡 Le fichier Excel contient chaque table dans un onglet séparé. Le fichier JSON contient toutes les données brutes pour une restauration complète.</p>
+</div>
+</div>
+
+<div className="glass rounded-2xl p-6">
+<h2 className="text-lg font-bold text-surface-100 mb-4">📈 Statistiques</h2>
+<div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div className="text-center p-4 bg-surface-800 rounded-xl">
+<p className="text-2xl font-bold text-primary-400">{banques.length}</p>
+<p className="text-xs text-surface-400">Banques</p>
+</div>
+<div className="text-center p-4 bg-surface-800 rounded-xl">
+<p className="text-2xl font-bold text-emerald-400">{trans.filter(t=>!t.deletedAt).length}</p>
+<p className="text-xs text-surface-400">Transactions</p>
+</div>
+<div className="text-center p-4 bg-surface-800 rounded-xl">
+<p className="text-2xl font-bold text-secondary-400">{users.length}</p>
+<p className="text-xs text-surface-400">Utilisateurs</p>
+</div>
+<div className="text-center p-4 bg-surface-800 rounded-xl">
+<p className="text-2xl font-bold text-amber-400">{params.pays.length+params.natures.length+params.statuts.length}</p>
+<p className="text-xs text-surface-400">Paramètres</p>
+</div>
+</div>
+</div>
+</div>)}
+
+{/* Onglet Informations */}
+{tab==='infos'&&(<div className="space-y-6">
+<div className="glass rounded-2xl p-6">
+<h2 className="text-lg font-bold text-surface-100 mb-4">🏢 Informations Organisation</h2>
+<div className="space-y-4">
+<div className="flex items-center gap-4 p-4 bg-surface-800 rounded-xl">
+<div className="w-16 h-16 gradient-primary rounded-xl flex items-center justify-center text-white text-2xl font-bold">{orgName?.charAt(0)||'?'}</div>
+<div>
+<p className="text-xl font-bold text-surface-100">{orgName||'Non défini'}</p>
+<p className="text-sm text-surface-400">Nom de l'organisation</p>
+</div>
+</div>
+</div>
+</div>
+
+<div className="glass rounded-2xl p-6">
+<h2 className="text-lg font-bold text-surface-100 mb-4">👤 Mon Profil</h2>
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div className="p-4 bg-surface-800 rounded-xl">
+<p className="text-xs text-surface-400 mb-1">Nom d'utilisateur</p>
+<p className="font-bold text-surface-100">{user?.username}</p>
+</div>
+<div className="p-4 bg-surface-800 rounded-xl">
+<p className="text-xs text-surface-400 mb-1">Email</p>
+<p className="font-bold text-surface-100">{user?.email||'Non défini'}</p>
+</div>
+<div className="p-4 bg-surface-800 rounded-xl">
+<p className="text-xs text-surface-400 mb-1">Rôle</p>
+<p className="font-bold text-surface-100">{ROLES[user?.role]?.icon} {ROLES[user?.role]?.label}</p>
+</div>
+</div>
+</div>
+</div>)}
 
 <Modal isOpen={showContactModal&&!!selectedPlan} onClose={()=>setShowContactModal(false)} title={selectedPlan?`📱 Souscrire au plan ${PLANS[selectedPlan]?.nom||''}`:''} size="sm">
 <div className="space-y-4">
@@ -1125,7 +1289,8 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 <p className="text-xs text-surface-500 text-center">Activation sous 24h après paiement.</p></>}
 </div>
 </Modal>
-</div>);};
+</div>);
+};
 
 // ===== PAGE ADMIN =====
 const AdminPage=({showToast,isSuperAdmin})=>{
@@ -1477,8 +1642,8 @@ return(<div className="min-h-screen bg-surface-950">
 {page==='soldes'&&<Soldes data={data} showToast={showToast}/>}
 {page==='users'&&user?.role==='Admin'&&<Users data={data} showToast={showToast}/>}
 {page==='corbeille'&&user?.role==='Admin'&&<Corbeille data={data} showToast={showToast}/>}
-{page==='abonnement'&&<AbonnementPage data={data} showToast={showToast}/>}
-{page==='settings'&&<Settings data={data} user={user} showToast={showToast}/>}
+{page==='config'&&<Config data={data} user={user} showToast={showToast}/>}
+{page==='parametres'&&<Parametres data={data} user={user} showToast={showToast}/>}
 {page==='admin'&&<AdminPage showToast={showToast} isSuperAdmin={isSuperAdmin}/>}
 </main>
 {toast&&<Toast message={toast.message} type={toast.type} onClose={()=>setToast(null)}/>}

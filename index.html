@@ -846,6 +846,11 @@ margin:{left:14,right:14}
 const dashboardEl=document.getElementById('dashboard-charts');
 if(dashboardEl){
 try{
+// Ajouter du padding temporaire pour la capture
+const originalStyle=dashboardEl.style.cssText;
+dashboardEl.style.padding='10px';
+dashboardEl.style.backgroundColor='#0f172a';
+
 // Capturer le conteneur des graphiques
 const canvas=await html2canvas(dashboardEl,{
 backgroundColor:'#0f172a',
@@ -853,6 +858,9 @@ scale:2,
 logging:false,
 useCORS:true
 });
+
+// Restaurer le style original
+dashboardEl.style.cssText=originalStyle;
 
 // PAGE 2: Graphiques
 doc.addPage();
@@ -945,7 +953,7 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 </div></div>
 
 <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4"><StatCard icon="💰" label="Encaissements" value={fmt(st.deb)+' F'} gradient="gradient-primary"/><StatCard icon="📤" label="Décaissements" value={fmt(st.cre)+' F'} gradient="gradient-secondary"/><StatCard icon="📊" label="Solde Net" value={fmt(st.sol)+' F'} subvalue={st.sol>=0?'Excédent':'Déficit'} gradient={st.sol>=0?"gradient-success":"gradient-danger"}/><StatCard icon="⏳" label="Suspens Net" value={fmt(st.susN)+' F'} subvalue={st.susC+' en attente'} gradient="gradient-warning" onClick={()=>onNavigate('transactions')}/><StatCard icon="📋" label="Transactions" value={st.cnt} subvalue="actives" gradient="gradient-indigo" onClick={()=>onNavigate('transactions')}/></div>
-{filtered.length>0?(<div id="dashboard-charts"><div className="grid grid-cols-1 lg:grid-cols-2 gap-5"><ChartC type="bar" data={bar} title="Évolution Mensuelle"/><ChartC type="line" data={line} title="Solde Cumulé"/></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-5"><ChartC type="doughnut" data={donut} title="Par Nature"/><div className="lg:col-span-2"><ChartC type="bar" data={top} title="Top Banques" options={{indexAxis:'y'}}/></div></div></div>):(<div className="glass rounded-xl p-8 text-center"><p className="text-surface-400">Aucune transaction pour cette période.</p><Button onClick={()=>onNavigate('transactions')} className="mt-4" icon="➕">Nouvelle transaction</Button></div>)}
+{filtered.length>0?(<div id="dashboard-charts" className="space-y-5 p-2"><div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5"><ChartC type="bar" data={bar} title="Évolution Mensuelle"/><ChartC type="line" data={line} title="Solde Cumulé"/></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-5"><ChartC type="doughnut" data={donut} title="Par Nature"/><div className="lg:col-span-2"><ChartC type="bar" data={top} title="Top Banques" options={{indexAxis:'y'}}/></div></div></div>):(<div className="glass rounded-xl p-8 text-center"><p className="text-surface-400">Aucune transaction pour cette période.</p><Button onClick={()=>onNavigate('transactions')} className="mt-4" icon="➕">Nouvelle transaction</Button></div>)}
 {Object.keys(st.sb).length>0&&(<div className="glass rounded-xl p-4"><h2 className="text-lg font-bold text-surface-100 mb-4">🏦 Soldes par Banque</h2><div className="grid grid-cols-2 md:grid-cols-4 gap-2">{Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([b,s])=>(<div key={b} className={cn('p-3 rounded-lg border',s>=0?'bg-emerald-500/10 border-emerald-500/30':'bg-red-500/10 border-red-500/30')}><p className="text-xs text-surface-400 truncate">{b}</p><p className={cn('text-base font-mono font-bold',s>=0?'text-emerald-400':'text-red-400')}>{fmt(s)}</p></div>))}</div></div>)}
 </div>);};
 

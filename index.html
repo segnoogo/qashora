@@ -776,81 +776,98 @@ doc.text(organisation.activite,logoX,36);
 // Info export
 doc.setFontSize(9);
 doc.setTextColor(150,150,150);
-doc.text(`Exporté le ${dateExport}`,196,12,{align:'right'});
-doc.text(`Par: ${user?.username||'Admin'}`,196,19,{align:'right'});
-doc.text(`Période: ${periode}`,196,26,{align:'right'});
+doc.text('Exporte le '+dateExport,196,12,{align:'right'});
+doc.text('Par: '+(user?.username||'Admin'),196,19,{align:'right'});
+doc.text('Periode: '+periode,196,26,{align:'right'});
 
-// Résumé financier
-doc.setFontSize(14);
-doc.setTextColor(50,50,50);
-doc.text('📊 Résumé Financier',14,57);
+// Résumé financier - Section titre
+doc.setFillColor(217,70,239);
+doc.rect(14,52,182,8,'F');
+doc.setFontSize(11);
+doc.setTextColor(255,255,255);
+doc.text('RESUME FINANCIER',105,58,{align:'center'});
 
 const summaryData=[
 ['Encaissements',formatNumber(st.deb)+' F'],
-['Décaissements',formatNumber(st.cre)+' F'],
+['Decaissements',formatNumber(st.cre)+' F'],
 ['Solde Net',formatNumber(st.sol)+' F'],
 ['Suspens Net',formatNumber(st.susN)+' F'],
-['Transactions en attente',st.susC.toString()],
-['Total Transactions',st.cnt.toString()]
+['Transactions en attente',String(st.susC)],
+['Total Transactions',String(st.cnt)]
 ];
 
 doc.autoTable({
 body:summaryData,
 startY:63,
 theme:'plain',
-styles:{fontSize:11,cellPadding:4},
-columnStyles:{0:{fontStyle:'bold',textColor:[100,100,100]},1:{halign:'right',textColor:[50,50,50]}}
+styles:{fontSize:11,cellPadding:5},
+columnStyles:{0:{fontStyle:'bold',textColor:[80,80,80]},1:{halign:'right',textColor:[50,50,50],fontStyle:'bold'}}
 });
 
 // Soldes par banque
-let currentY=doc.lastAutoTable.finalY+15;
-doc.setFontSize(14);
-doc.setTextColor(50,50,50);
-doc.text('🏦 Soldes par Banque',14,currentY);
+let currentY=doc.lastAutoTable.finalY+10;
+doc.setFillColor(16,185,129);
+doc.rect(14,currentY,182,8,'F');
+doc.setFontSize(11);
+doc.setTextColor(255,255,255);
+doc.text('SOLDES PAR BANQUE',105,currentY+6,{align:'center'});
 
-const bankData=Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([nom,solde])=>[nom,formatNumber(solde)+' F',solde>=0?'Excédent':'Déficit']);
+const bankData=Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([nom,solde])=>[nom,formatNumber(solde)+' F',solde>=0?'Excedent':'Deficit']);
 doc.autoTable({
 head:[['Banque','Solde','Statut']],
 body:bankData,
-startY:currentY+6,
+startY:currentY+11,
 theme:'striped',
-headStyles:{fillColor:[217,70,239],textColor:[255,255,255],fontStyle:'bold'},
-columnStyles:{1:{halign:'right'},2:{halign:'center'}}
+headStyles:{fillColor:[100,100,100],textColor:[255,255,255],fontStyle:'bold'},
+columnStyles:{1:{halign:'right'},2:{halign:'center'}},
+bodyStyles:{fontSize:10}
 });
 
 // Répartition par nature
-currentY=doc.lastAutoTable.finalY+15;
+currentY=doc.lastAutoTable.finalY+10;
 if(currentY>250){doc.addPage();currentY=20;}
-doc.setFontSize(14);
-doc.setTextColor(50,50,50);
-doc.text('📈 Répartition par Nature',14,currentY);
+doc.setFillColor(34,211,238);
+doc.rect(14,currentY,182,8,'F');
+doc.setFontSize(11);
+doc.setTextColor(255,255,255);
+doc.text('REPARTITION PAR NATURE',105,currentY+6,{align:'center'});
 
 const natureData=Object.entries(st.bn).map(([nature,montant])=>[nature,formatNumber(montant)+' F']);
+if(natureData.length>0){
 doc.autoTable({
 head:[['Nature','Montant']],
 body:natureData,
-startY:currentY+6,
+startY:currentY+11,
 theme:'striped',
-headStyles:{fillColor:[34,211,238],textColor:[255,255,255],fontStyle:'bold'},
-columnStyles:{1:{halign:'right'}}
+headStyles:{fillColor:[100,100,100],textColor:[255,255,255],fontStyle:'bold'},
+columnStyles:{1:{halign:'right'}},
+bodyStyles:{fontSize:10}
 });
+currentY=doc.lastAutoTable.finalY+10;
+}else{
+currentY+=20;
+}
 
 // Évolution mensuelle
-currentY=doc.lastAutoTable.finalY+15;
 if(currentY>220){doc.addPage();currentY=20;}
-doc.setFontSize(14);
-doc.setTextColor(50,50,50);
-doc.text('📅 Évolution Mensuelle',14,currentY);
+doc.setFillColor(245,158,11);
+doc.rect(14,currentY,182,8,'F');
+doc.setFontSize(11);
+doc.setTextColor(255,255,255);
+doc.text('EVOLUTION MENSUELLE',105,currentY+6,{align:'center'});
 
 const monthData=Object.entries(st.md).map(([mois,data])=>[mois,formatNumber(data.d)+' F',formatNumber(data.c)+' F',formatNumber(data.d-data.c)+' F']);
+if(monthData.length>0){
 doc.autoTable({
-head:[['Mois','Encaissements','Décaissements','Solde']],
+head:[['Mois','Encaissements','Decaissements','Solde']],
 body:monthData,
-startY:currentY+6,
+startY:currentY+11,
 theme:'striped',
-headStyles:{fillColor:[217,70,239],textColor:[255,255,255],fontStyle:'bold'},
-columnStyles:{1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}}
+headStyles:{fillColor:[100,100,100],textColor:[255,255,255],fontStyle:'bold'},
+columnStyles:{1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}},
+bodyStyles:{fontSize:10}
 });
+}
 
 // Pied de page
 const pageCount=doc.internal.getNumberOfPages();
@@ -858,11 +875,11 @@ for(let i=1;i<=pageCount;i++){
 doc.setPage(i);
 doc.setFontSize(8);
 doc.setTextColor(150,150,150);
-doc.text(`Page ${i}/${pageCount}`,105,290,{align:'center'});
-doc.text('Généré par Qashora',14,290);
+doc.text('Page '+i+'/'+pageCount,105,290,{align:'center'});
+doc.text('Genere par Qashora',14,290);
 }
 
-doc.save(`dashboard_${orgName||'qashora'}_${now.toISOString().split('T')[0]}.pdf`);
+doc.save('dashboard_'+(orgName||'qashora')+'_'+now.toISOString().split('T')[0]+'.pdf');
 };
 
 if(banques.length===0)return(<div className="animate-fade-in pt-16 md:pt-0"><div className="glass rounded-2xl p-8 text-center"><div className="text-6xl mb-4">🏦</div><h2 className="text-2xl font-bold text-surface-100 mb-2">Bienvenue sur Qashora !</h2><p className="text-surface-400 mb-6">Pour commencer, ajoutez vos banques dans les paramètres.</p><Button onClick={()=>onNavigate('config')} icon="⚙️" size="lg">Configurer mes banques</Button></div></div>);

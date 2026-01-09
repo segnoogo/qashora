@@ -660,8 +660,9 @@ return(<><div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-surface-90
 <div className="p-4 border-t border-surface-800"><div className="flex items-center gap-3 mb-3"><div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold">{user?.username?.charAt(0).toUpperCase()}</div><div className="flex-1 min-w-0"><p className="text-sm font-medium text-surface-200 truncate">{user?.username}</p><p className="text-xs text-surface-500 flex items-center gap-1"><span>{roleInfo.icon}</span>{roleInfo.label}</p></div></div><Button variant="ghost" className="w-full justify-start" onClick={logout} icon="🚪">Déconnexion</Button></div></aside></>);};
 
 // ===== PAGE DASHBOARD =====
-const Dashboard=({trans,banques,onNavigate})=>{
+const Dashboard=({trans,banques,onNavigate,organisation,user})=>{
 const currentYear=new Date().getFullYear();
+const orgName=organisation?.nom||'';
 const years=useMemo(()=>{const ySet=new Set();trans.forEach(t=>{if(t.date)ySet.add(new Date(t.date).getFullYear());});return[...ySet].sort((a,b)=>b-a);},[trans]);
 const[year,setYear]=useState(currentYear);
 const[d1,setD1]=useState('');
@@ -672,7 +673,7 @@ if(d1&&d2){a=a.filter(t=>t.date>=d1&&t.date<=d2);}
 else if(year){a=a.filter(t=>new Date(t.date).getFullYear()===year);}
 return a;},[trans,year,d1,d2]);
 
-const st=useMemo(()=>{const a=filtered;const deb=a.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const cre=a.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);const sus=a.filter(t=>t.statut&&t.statut.includes('En attente'));const susD=sus.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const susC=sus.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);
+const st=useMemo(()=>{const a=filtered;const deb=a.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const cre=a.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);const sus=a.filter(t=>t.statut&&t.statut.startsWith('En attente'));const susD=sus.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const susC=sus.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);
 const sb={};banques.forEach(b=>{const bt=a.filter(t=>t.banqueNom===b.nom);const soldeOuv=parseFloat(b.solde_ouverture)||0;const mvt=(bt.reduce((s,t)=>s+(parseFloat(t.debit)||0),0))-(bt.reduce((s,t)=>s+(parseFloat(t.credit)||0),0));sb[b.nom]=soldeOuv+mvt;});
 const md={};a.forEach(t=>{const m=new Date(t.date).toLocaleDateString('fr-FR',{month:'short'});if(!md[m])md[m]={d:0,c:0};md[m].d+=parseFloat(t.debit)||0;md[m].c+=parseFloat(t.credit)||0;});const bn={};a.forEach(t=>{if(!bn[t.nature])bn[t.nature]=0;bn[t.nature]+=(parseFloat(t.debit)||0)+(parseFloat(t.credit)||0);});
 const totalSoldeOuv=banques.reduce((s,b)=>s+(parseFloat(b.solde_ouverture)||0),0);
@@ -686,10 +687,118 @@ const top=useMemo(()=>{const s=Object.entries(st.sb).filter(([_,v])=>v!==0).sort
 const resetFilters=()=>{setYear(currentYear);setD1('');setD2('');};
 const applyDateRange=(from,to)=>{setD1(from);setD2(to);setYear(0);};
 
-if(banques.length===0)return(<div className="animate-fade-in pt-16 md:pt-0"><div className="glass rounded-2xl p-8 text-center"><div className="text-6xl mb-4">🏦</div><h2 className="text-2xl font-bold text-surface-100 mb-2">Bienvenue sur Qashora !</h2><p className="text-surface-400 mb-6">Pour commencer, ajoutez vos banques dans les paramètres.</p><Button onClick={()=>onNavigate('settings')} icon="⚙️" size="lg">Configurer mes banques</Button></div></div>);
+// Export PDF du Dashboard
+const exportDashboardPDF=async()=>{
+const{jsPDF}=window.jspdf;
+const doc=new jsPDF('portrait');
+const now=new Date();
+const dateExport=now.toLocaleDateString('fr-FR')+' à '+now.toLocaleTimeString('fr-FR');
+const periode=d1&&d2?`du ${fmtD(d1)} au ${fmtD(d2)}`:year?`Année ${year}`:'Toutes périodes';
+
+// En-tête
+doc.setFillColor(24,24,27);
+doc.rect(0,0,210,40,'F');
+doc.setFontSize(20);
+doc.setTextColor(217,70,239);
+doc.text('Tableau de Bord',14,20);
+if(orgName){doc.setFontSize(14);doc.setTextColor(255,255,255);doc.text(orgName,14,30);}
+
+// Info export
+doc.setFontSize(9);
+doc.setTextColor(150,150,150);
+doc.text(`Exporté le ${dateExport}`,196,15,{align:'right'});
+doc.text(`Par: ${user?.username||'Admin'}`,196,22,{align:'right'});
+doc.text(`Période: ${periode}`,196,29,{align:'right'});
+
+// Résumé financier
+doc.setFontSize(14);
+doc.setTextColor(50,50,50);
+doc.text('📊 Résumé Financier',14,52);
+
+const summaryData=[
+['Encaissements',formatNumber(st.deb)+' F'],
+['Décaissements',formatNumber(st.cre)+' F'],
+['Solde Net',formatNumber(st.sol)+' F'],
+['Suspens Net',formatNumber(st.susN)+' F'],
+['Transactions en attente',st.susC.toString()],
+['Total Transactions',st.cnt.toString()]
+];
+
+doc.autoTable({
+body:summaryData,
+startY:58,
+theme:'plain',
+styles:{fontSize:11,cellPadding:4},
+columnStyles:{0:{fontStyle:'bold',textColor:[100,100,100]},1:{halign:'right',textColor:[50,50,50]}}
+});
+
+// Soldes par banque
+let currentY=doc.lastAutoTable.finalY+15;
+doc.setFontSize(14);
+doc.setTextColor(50,50,50);
+doc.text('🏦 Soldes par Banque',14,currentY);
+
+const bankData=Object.entries(st.sb).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).map(([nom,solde])=>[nom,formatNumber(solde)+' F',solde>=0?'Excédent':'Déficit']);
+doc.autoTable({
+head:[['Banque','Solde','Statut']],
+body:bankData,
+startY:currentY+6,
+theme:'striped',
+headStyles:{fillColor:[217,70,239],textColor:[255,255,255],fontStyle:'bold'},
+columnStyles:{1:{halign:'right'},2:{halign:'center'}}
+});
+
+// Répartition par nature
+currentY=doc.lastAutoTable.finalY+15;
+if(currentY>250){doc.addPage();currentY=20;}
+doc.setFontSize(14);
+doc.setTextColor(50,50,50);
+doc.text('📈 Répartition par Nature',14,currentY);
+
+const natureData=Object.entries(st.bn).map(([nature,montant])=>[nature,formatNumber(montant)+' F']);
+doc.autoTable({
+head:[['Nature','Montant']],
+body:natureData,
+startY:currentY+6,
+theme:'striped',
+headStyles:{fillColor:[34,211,238],textColor:[255,255,255],fontStyle:'bold'},
+columnStyles:{1:{halign:'right'}}
+});
+
+// Évolution mensuelle
+currentY=doc.lastAutoTable.finalY+15;
+if(currentY>220){doc.addPage();currentY=20;}
+doc.setFontSize(14);
+doc.setTextColor(50,50,50);
+doc.text('📅 Évolution Mensuelle',14,currentY);
+
+const monthData=Object.entries(st.md).map(([mois,data])=>[mois,formatNumber(data.d)+' F',formatNumber(data.c)+' F',formatNumber(data.d-data.c)+' F']);
+doc.autoTable({
+head:[['Mois','Encaissements','Décaissements','Solde']],
+body:monthData,
+startY:currentY+6,
+theme:'striped',
+headStyles:{fillColor:[217,70,239],textColor:[255,255,255],fontStyle:'bold'},
+columnStyles:{1:{halign:'right'},2:{halign:'right'},3:{halign:'right'}}
+});
+
+// Pied de page
+const pageCount=doc.internal.getNumberOfPages();
+for(let i=1;i<=pageCount;i++){
+doc.setPage(i);
+doc.setFontSize(8);
+doc.setTextColor(150,150,150);
+doc.text(`Page ${i}/${pageCount}`,105,290,{align:'center'});
+doc.text('Généré par Qashora',14,290);
+}
+
+doc.save(`dashboard_${orgName||'qashora'}_${now.toISOString().split('T')[0]}.pdf`);
+};
+
+if(banques.length===0)return(<div className="animate-fade-in pt-16 md:pt-0"><div className="glass rounded-2xl p-8 text-center"><div className="text-6xl mb-4">🏦</div><h2 className="text-2xl font-bold text-surface-100 mb-2">Bienvenue sur Qashora !</h2><p className="text-surface-400 mb-6">Pour commencer, ajoutez vos banques dans les paramètres.</p><Button onClick={()=>onNavigate('config')} icon="⚙️" size="lg">Configurer mes banques</Button></div></div>);
 
 return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
-<div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-surface-100">Tableau de bord</h1><p className="text-surface-400 mt-1">Vue d'ensemble {d1&&d2?`du ${fmtD(d1)} au ${fmtD(d2)}`:year?`- Année ${year}`:''}</p></div><p className="text-surface-300 font-mono text-sm">{new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</p></div>
+<div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div><h1 className="text-2xl font-bold text-surface-100">Tableau de bord</h1><p className="text-surface-400 mt-1">{orgName&&<span className="text-primary-400">{orgName}</span>}{orgName&&' • '}Vue d'ensemble {d1&&d2?`du ${fmtD(d1)} au ${fmtD(d2)}`:year?`- Année ${year}`:''}</p></div><div className="flex items-center gap-3"><Button variant="secondary" onClick={exportDashboardPDF} icon="📄" size="sm">Export PDF</Button><p className="text-surface-300 font-mono text-sm hidden md:block">{new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</p></div></div>
 
 <div className="glass rounded-xl p-4"><div className="flex flex-wrap items-end gap-3">
 <div><label className="block text-xs font-bold text-surface-300 mb-1.5">Année</label><select value={year} onChange={e=>{setYear(parseInt(e.target.value));setD1('');setD2('');}} className="px-3 py-2 bg-surface-800 border border-surface-600 rounded-xl text-surface-100 text-sm"><option value={0}>Toutes</option>{years.map(y=><option key={y} value={y}>{y}</option>)}{!years.includes(currentYear)&&<option value={currentYear}>{currentYear}</option>}</select></div>
@@ -898,7 +1007,10 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0"><div className="
 {filtered.length===0?(<div className="glass rounded-xl p-8"><Empty icon="📋" title="Aucune transaction" desc={f.q||f.banque||f.nature||f.statut||f.d1?'Modifiez vos filtres':'Créez votre première transaction'} action={canCreate&&!f.q&&<Button onClick={handleAddTrans} icon="➕">Nouvelle transaction</Button>}/></div>):(<div className="glass rounded-xl overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-surface-800"><tr className="text-left text-xs text-surface-400">{[{k:'date',l:'Date'},{k:'banqueNom',l:'Banque'},{k:'numero',l:'N°'},{k:'nature',l:'Nature'},{k:'designation',l:'Désignation'},{k:'debit',l:'Débit'},{k:'credit',l:'Crédit'},{k:'statut',l:'Statut'}].map(c=>(<th key={c.k} className="px-3 md:px-4 py-3 cursor-pointer hover:text-surface-200 whitespace-nowrap" onClick={()=>doSort(c.k)}><div className="flex items-center gap-1">{c.l}{sort.k===c.k&&(sort.d==='asc'?'↑':'↓')}</div></th>))}{(canEditTrans||canDelete)&&<th className="px-3 md:px-4 py-3">Act.</th>}</tr></thead><tbody className="divide-y divide-surface-800">{filtered.map(t=>(<tr key={t.id} className={cn('table-row',t.statut==='Annulé'&&'opacity-50')}><td className="px-3 md:px-4 py-3 font-mono text-surface-300 text-xs">{fmtD(t.date)}</td><td className="px-3 md:px-4 py-3 text-surface-200 max-w-[100px] truncate text-xs">{t.banqueNom}</td><td className="px-3 md:px-4 py-3 font-mono text-surface-400 text-xs">{t.numero}</td><td className="px-3 md:px-4 py-3"><Badge variant={t.nature==='Recette'?'success':t.nature==='Dépense'?'info':'default'}>{t.nature}</Badge></td><td className="px-3 md:px-4 py-3 text-surface-300 max-w-[150px] truncate text-xs">{t.designation}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-emerald-400 text-xs">{t.debit&&parseFloat(t.debit)>0?fmt(t.debit):'-'}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-secondary-400 text-xs">{t.credit&&parseFloat(t.credit)>0?fmt(t.credit):'-'}</td><td className="px-3 md:px-4 py-3"><Badge variant={t.statut==='Confirmé'?'success':t.statut==='Annulé'?'danger':'warning'}>{t.statut?.substring(0,10)}</Badge></td>{(canEditTrans||canDelete)&&<td className="px-3 md:px-4 py-3"><div className="flex gap-1">{canEditTrans&&<button onClick={()=>{setEdit(t);setShow(true);}} className="p-1 hover:bg-surface-700 rounded text-surface-400 hover:text-primary-400">✏️</button>}{canDelete&&<button onClick={()=>del(t)} className="p-1 hover:bg-surface-700 rounded text-surface-400 hover:text-red-400">🗑️</button>}</div></td>}</tr>))}</tbody><tfoot className="bg-surface-800 border-t-2 border-primary-500"><tr className="font-bold"><td colSpan="5" className="px-3 md:px-4 py-3 text-right text-surface-200 text-xs">TOTAUX:</td><td className="px-3 md:px-4 py-3 text-right font-mono text-emerald-400">{fmt(tot.d)}</td><td className="px-3 md:px-4 py-3 text-right font-mono text-secondary-400">{fmt(tot.c)}</td><td colSpan="2" className="px-3 md:px-4 py-3"><span className={cn('font-mono',tot.d-tot.c>=0?'text-emerald-400':'text-red-400')}>={fmt(tot.d-tot.c)}</span></td></tr></tfoot></table></div></div>)}
 <Modal isOpen={show} onClose={()=>{setShow(false);setEdit(null);}} title={edit?'Modifier la transaction':'Nouvelle transaction'} size="lg"><TransForm trans={edit} banques={banques} params={params} isAdmin={user?.role==='Admin'} onSave={save} onCancel={()=>{setShow(false);setEdit(null);}} saving={saving}/></Modal></div>);};
 
-const TransForm=({trans,banques,params,isAdmin,onSave,onCancel,saving})=>{const[f,setF]=useState({date:trans?.date||new Date().toISOString().split('T')[0],banqueId:trans?.banqueId||'',pays:trans?.pays||'Burkina Faso',projet:trans?.projet||'',noCheque:trans?.noCheque||'',demandeur:trans?.demandeur||'',sectionDem:trans?.sectionDem||'',nature:trans?.nature||'',designation:trans?.designation||'',beneficiaire:trans?.beneficiaire||'',sectionBen:trans?.sectionBen||'',debit:trans?.debit||'',credit:trans?.credit||'',centre:trans?.centre||'',statut:trans?.statut||'En attente entreprise',bDebit:trans?.bDebit||'',bCredit:trans?.bCredit||''});
+const TransForm=({trans,banques,params,isAdmin,onSave,onCancel,saving})=>{
+// Utiliser le statut de la transaction si elle existe, sinon le premier statut disponible ou 'En attente'
+const defaultStatut=trans?.statut||(params.statuts.length>0?params.statuts.find(s=>s.startsWith('En attente'))||params.statuts[0]:'En attente');
+const[f,setF]=useState({date:trans?.date||new Date().toISOString().split('T')[0],banqueId:trans?.banqueId||'',pays:trans?.pays||'Burkina Faso',projet:trans?.projet||'',noCheque:trans?.noCheque||'',demandeur:trans?.demandeur||'',sectionDem:trans?.sectionDem||'',nature:trans?.nature||'',designation:trans?.designation||'',beneficiaire:trans?.beneficiaire||'',sectionBen:trans?.sectionBen||'',debit:trans?.debit||'',credit:trans?.credit||'',centre:trans?.centre||'',statut:defaultStatut,bDebit:trans?.bDebit||'',bCredit:trans?.bCredit||''});
 const ch=(k,v)=>setF(p=>{const u={...p,[k]:v};if(k==='nature'){if(v==='Recette'){u.credit='';u.bCredit='';}else if(v==='Dépense'){u.debit='';u.bDebit='';}}if(k==='banqueId'){const b=banques.find(x=>x.id===parseInt(v));if(b)u.pays=b.pays||'Burkina Faso';}return u;});
 const go=e=>{e.preventDefault();if(!f.banqueId||!f.nature){alert('Banque et Nature sont obligatoires');return;}const b=banques.find(x=>x.id===parseInt(f.banqueId));onSave({...f,banqueId:parseInt(f.banqueId),banqueNom:b?.nom||'',debit:parse(f.debit),credit:parse(f.credit),bDebit:parse(f.bDebit),bCredit:parse(f.bCredit)});};
 const isR=f.nature==='Recette',isD=f.nature==='Dépense';
@@ -1710,7 +1822,7 @@ if(data.error)return(<div className="min-h-screen flex items-center justify-cent
 return(<div className="min-h-screen bg-surface-950">
 <Side page={page} nav={setPage} user={user} logout={handleLogout} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin} orgName={data.organisation?.nom}/>
 <main className="main-content md:ml-64 p-4 md:p-8">
-{page==='dashboard'&&<Dashboard trans={data.trans} banques={data.banques} onNavigate={setPage}/>}
+{page==='dashboard'&&<Dashboard trans={data.trans} banques={data.banques} onNavigate={setPage} organisation={data.organisation} user={user}/>}
 {page==='transactions'&&<Transactions data={data} user={user} showToast={showToast}/>}
 {page==='soldes'&&<Soldes data={data} showToast={showToast}/>}
 {page==='users'&&user?.role==='Admin'&&<Users data={data} showToast={showToast}/>}

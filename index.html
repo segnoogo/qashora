@@ -451,7 +451,7 @@ const useData=(organisationId)=>{
     const[users,setUsers]=useState([]);
     const[params,setParams]=useState({pays:[],natures:[],statuts:[]});
     const[abonnement,setAbonnement]=useState(null);
-    const[orgName,setOrgName]=useState('');
+    const[organisation,setOrganisation]=useState({nom:'',adresse:'',telephone:'',activite:''});
     const[loading,setLoading]=useState(true);
     const[error,setError]=useState(null);
 
@@ -465,7 +465,7 @@ const useData=(organisationId)=>{
                 supabase.from('utilisateurs').select('*').eq('organisation_id',organisationId).eq('actif',true),
                 supabase.from('parametres').select('*').eq('organisation_id',organisationId).eq('actif',true).order('ordre'),
                 supabase.from('abonnements').select('*').eq('organisation_id',organisationId).order('created_at',{ascending:false}).limit(1),
-                supabase.from('organisations').select('nom').eq('id',organisationId).single()
+                supabase.from('organisations').select('*').eq('id',organisationId).single()
             ]);
             if(bRes.error)throw bRes.error;
             if(tRes.error)throw tRes.error;
@@ -474,7 +474,12 @@ const useData=(organisationId)=>{
             setBanques(bRes.data||[]);
             setTrans((tRes.data||[]).map(t=>({...t,banqueId:t.banque_id,banqueNom:t.banque_nom,noCheque:t.no_cheque,sectionDem:t.section_demandeur,sectionBen:t.section_beneficiaire,centre:t.centre_interet,bDebit:t.banque_debit,bCredit:t.banque_credit,deletedAt:t.deleted_at,deletedBy:t.deleted_by})));
             setUsers(uRes.data||[]);
-            setOrgName(oRes.data?.nom||'');
+            setOrganisation({
+                nom:oRes.data?.nom||'',
+                adresse:oRes.data?.adresse||'',
+                telephone:oRes.data?.telephone||'',
+                activite:oRes.data?.activite||''
+            });
             const p={pays:[],natures:[],statuts:[]};
             (pRes.data||[]).forEach(x=>{if(x.type==='pays')p.pays.push(x.valeur);else if(x.type==='nature')p.natures.push(x.valeur);else if(x.type==='statut')p.statuts.push(x.valeur);});
             setParams(p);
@@ -530,7 +535,19 @@ const useData=(organisationId)=>{
     const canExportPDF=()=>getPlanLimites().exportPDF;
     const getJoursRestants=()=>{if(!abonnement?.date_fin)return 0;const diff=new Date(abonnement.date_fin)-new Date();return Math.max(0,Math.ceil(diff/(1000*60*60*24)));};
 
-    return{banques,trans,users,params,abonnement,orgName,loading,error,reload:loadAll,addBanque,updateBanque,deleteBanque,addTrans,updateTrans,deleteTrans,restoreTrans,permDeleteTrans,addUser,updateUser,deleteUser,resetPassword,addParam,updateParam,deleteParam,getPlanLimites,checkLimite,canExportPDF,getJoursRestants};
+    // Mise à jour organisation
+    const updateOrganisation=async(data)=>{
+        const{error}=await supabase.from('organisations').update({
+            nom:data.nom,
+            adresse:data.adresse,
+            telephone:data.telephone,
+            activite:data.activite
+        }).eq('id',organisationId);
+        if(error)throw error;
+        setOrganisation(data);
+    };
+
+    return{banques,trans,users,params,abonnement,organisation,loading,error,reload:loadAll,addBanque,updateBanque,deleteBanque,addTrans,updateTrans,deleteTrans,restoreTrans,permDeleteTrans,addUser,updateUser,deleteUser,resetPassword,addParam,updateParam,deleteParam,getPlanLimites,checkLimite,canExportPDF,getJoursRestants,updateOrganisation};
 };
 
 // ===== PAGE LOGIN =====
@@ -831,7 +848,7 @@ XLSX.writeFile(wb,filename+'.xlsx');
 };
 
 // ===== PAGE TRANSACTIONS =====
-const Transactions=({data,user,showToast})=>{const{trans,banques,params,addTrans,updateTrans,deleteTrans,checkLimite,canExportPDF,getPlanLimites,orgName}=data;const[show,setShow]=useState(false);const[edit,setEdit]=useState(null);const[f,setF]=useState({q:'',banque:'',nature:'',statut:'',d1:'',d2:'',period:''});const[sort,setSort]=useState({k:'date',d:'desc'});const[saving,setSaving]=useState(false);
+const Transactions=({data,user,showToast})=>{const{trans,banques,params,addTrans,updateTrans,deleteTrans,checkLimite,canExportPDF,getPlanLimites,organisation}=data;const orgName=organisation?.nom||'';const[show,setShow]=useState(false);const[edit,setEdit]=useState(null);const[f,setF]=useState({q:'',banque:'',nature:'',statut:'',d1:'',d2:'',period:''});const[sort,setSort]=useState({k:'date',d:'desc'});const[saving,setSaving]=useState(false);
 const canCreate=canDo(user?.role,'create');const canEditTrans=canDo(user?.role,'update');const canDelete=canDo(user?.role,'delete');
 const limites=getPlanLimites();
 const transActives=trans.filter(t=>!t.deletedAt);
@@ -888,7 +905,7 @@ const isR=f.nature==='Recette',isD=f.nature==='Dépense';
 return(<form onSubmit={go} className="space-y-4"><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><Input label="Date" type="date" value={f.date} onChange={e=>ch('date',e.target.value)} required/><Select label="Banque" value={String(f.banqueId)} onChange={e=>ch('banqueId',e.target.value)} options={banques.map(b=>({value:String(b.id),label:b.nom}))} placeholder="Sélectionner" required/><Select label="Pays" value={f.pays} onChange={e=>ch('pays',e.target.value)} options={params.pays}/></div><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><Input label="Projet" value={f.projet} onChange={e=>ch('projet',e.target.value)} placeholder="PRJ-001"/><Input label="N° Chèque" value={f.noCheque} onChange={e=>ch('noCheque',e.target.value)}/><Select label="Nature" value={f.nature} onChange={e=>ch('nature',e.target.value)} options={params.natures} placeholder="Sélectionner" required/></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Demandeur" value={f.demandeur} onChange={e=>ch('demandeur',e.target.value)}/><Input label="Section demandeur" value={f.sectionDem} onChange={e=>ch('sectionDem',e.target.value)}/></div><Input label="Désignation" value={f.designation} onChange={e=>ch('designation',e.target.value)} placeholder="Description"/><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Bénéficiaire" value={f.beneficiaire} onChange={e=>ch('beneficiaire',e.target.value)}/><Input label="Section bénéficiaire" value={f.sectionBen} onChange={e=>ch('sectionBen',e.target.value)}/></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Débit (Encaissement)" value={String(f.debit)} onChange={e=>ch('debit',e.target.value)} disabled={isD} placeholder="0"/><Input label="Crédit (Décaissement)" value={String(f.credit)} onChange={e=>ch('credit',e.target.value)} disabled={isR} placeholder="0"/></div>{isAdmin&&<div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-surface-900 rounded-xl border border-surface-700"><Input label="Banque Débit" value={String(f.bDebit)} onChange={e=>ch('bDebit',e.target.value)} disabled={isD}/><Input label="Banque Crédit" value={String(f.bCredit)} onChange={e=>ch('bCredit',e.target.value)} disabled={isR}/></div>}<div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input label="Centre d'intérêt" value={f.centre} onChange={e=>ch('centre',e.target.value)}/><Select label="Statut" value={f.statut} onChange={e=>ch('statut',e.target.value)} options={params.statuts}/></div><div className="flex justify-end gap-3 pt-4 border-t border-surface-700"><Button variant="secondary" onClick={onCancel}>Annuler</Button><Button type="submit" loading={saving}>{trans?'Modifier':'Créer'}</Button></div></form>);};
 
 // ===== PAGE SOLDES =====
-const Soldes=({data,showToast})=>{const{trans,banques,canExportPDF,orgName}=data;
+const Soldes=({data,showToast})=>{const{trans,banques,canExportPDF,organisation}=data;const orgName=organisation?.nom||'';
 const sb=useMemo(()=>{const a=trans.filter(t=>!t.deletedAt&&t.statut!=='Annulé');const r={};banques.forEach(b=>{const bt=a.filter(t=>t.banqueNom===b.nom);const soldeOuv=parseFloat(b.solde_ouverture)||0;const mvtD=bt.reduce((s,t)=>s+(parseFloat(t.debit)||0),0);const mvtC=bt.reduce((s,t)=>s+(parseFloat(t.credit)||0),0);r[b.nom]={ouv:soldeOuv,d:mvtD,c:mvtC,s:soldeOuv+mvtD-mvtC,info:b};});return r;},[trans,banques]);
 const tot=useMemo(()=>Object.values(sb).reduce((a,b)=>({ouv:a.ouv+b.ouv,d:a.d+b.d,c:a.c+b.c,s:a.s+b.s}),{ouv:0,d:0,c:0,s:0}),[sb]);
 
@@ -1086,17 +1103,46 @@ return(<form onSubmit={go} className="space-y-4"><Input label="Nom de la banque"
 
 // ===== PAGE PARAMETRES (Abonnement + Backup + Infos) =====
 const Parametres=({data,user,showToast})=>{
-const{abonnement,getJoursRestants,banques,trans,users,params,orgName,getPlanLimites}=data;
+const{abonnement,getJoursRestants,banques,trans,users,params,organisation,getPlanLimites,updateOrganisation}=data;
+const orgName=organisation?.nom||'';
 const[tab,setTab]=useState('abonnement');
 const[selectedPlan,setSelectedPlan]=useState(null);
 const[showContactModal,setShowContactModal]=useState(false);
+const[editOrg,setEditOrg]=useState(false);
+const[orgForm,setOrgForm]=useState({nom:'',adresse:'',telephone:'',activite:''});
+const[savingOrg,setSavingOrg]=useState(false);
 const joursRestants=getJoursRestants();
 const planActuel=PLANS[abonnement?.plan||'trial'];
 const isExpire=abonnement?.isExpire||joursRestants<=0;
 const limites=getPlanLimites();
+const canEdit=user?.role==='Admin';
+
+// Initialiser le formulaire avec les données actuelles
+useEffect(()=>{
+if(organisation){
+setOrgForm({
+nom:organisation.nom||'',
+adresse:organisation.adresse||'',
+telephone:organisation.telephone||'',
+activite:organisation.activite||''
+});
+}
+},[organisation]);
 
 const handleSelectPlan=(planKey)=>{if(planKey===abonnement?.plan&&!isExpire)return;setSelectedPlan(planKey);setShowContactModal(true);};
 const getWhatsAppLink=()=>{if(!selectedPlan)return'#';const plan=PLANS[selectedPlan];if(!plan)return'#';const message=encodeURIComponent(`Bonjour! Je souhaite souscrire au plan ${plan.nom} de Qashora.\n💰 Montant: ${plan.prix.toLocaleString()} FCFA/mois`);return`https://wa.me/${WHATSAPP_CONTACT.replace('+','')}?text=${message}`;};
+
+// Sauvegarder les infos organisation
+const saveOrg=async()=>{
+if(!orgForm.nom.trim()){showToast?.('Le nom est obligatoire','error');return;}
+setSavingOrg(true);
+try{
+await updateOrganisation(orgForm);
+setEditOrg(false);
+showToast?.('Informations mises à jour','success');
+}catch(e){showToast?.('Erreur: '+e.message,'error');}
+setSavingOrg(false);
+};
 
 // Backup Excel
 const backupExcel=()=>{
@@ -1132,7 +1178,7 @@ showToast?.('Backup Excel téléchargé','success');
 // Backup JSON
 const backupJSON=()=>{
 const backup={
-organisation:orgName,
+organisation:organisation,
 date_export:new Date().toISOString(),
 banques:banques,
 transactions:trans.filter(t=>!t.deletedAt),
@@ -1250,21 +1296,48 @@ return(<div className="space-y-6 animate-fade-in pt-16 md:pt-0">
 {/* Onglet Informations */}
 {tab==='infos'&&(<div className="space-y-6">
 <div className="glass rounded-2xl p-6">
-<h2 className="text-lg font-bold text-surface-100 mb-4">🏢 Informations Organisation</h2>
+<div className="flex items-center justify-between mb-4">
+<h2 className="text-lg font-bold text-surface-100">🏢 Informations Organisation</h2>
+{canEdit&&!editOrg&&<Button onClick={()=>setEditOrg(true)} variant="secondary" icon="✏️" size="sm">Modifier</Button>}
+</div>
+
+{editOrg?(
+<div className="space-y-4">
+<Input label="Nom de l'organisation" value={orgForm.nom} onChange={e=>setOrgForm({...orgForm,nom:e.target.value})} placeholder="Ex: Ma Société SARL" required/>
+<Input label="Activité / Secteur" value={orgForm.activite} onChange={e=>setOrgForm({...orgForm,activite:e.target.value})} placeholder="Ex: Commerce général, BTP, Services..."/>
+<Input label="Adresse" value={orgForm.adresse} onChange={e=>setOrgForm({...orgForm,adresse:e.target.value})} placeholder="Ex: 123 Rue Example, Ouagadougou"/>
+<Input label="Téléphone" value={orgForm.telephone} onChange={e=>setOrgForm({...orgForm,telephone:e.target.value})} placeholder="Ex: +226 70 00 00 00"/>
+<div className="flex justify-end gap-3 pt-4 border-t border-surface-700">
+<Button variant="secondary" onClick={()=>{setEditOrg(false);setOrgForm({nom:organisation?.nom||'',adresse:organisation?.adresse||'',telephone:organisation?.telephone||'',activite:organisation?.activite||''});}}>Annuler</Button>
+<Button onClick={saveOrg} loading={savingOrg} icon="💾">Enregistrer</Button>
+</div>
+</div>
+):(
 <div className="space-y-4">
 <div className="flex items-center gap-4 p-4 bg-surface-800 rounded-xl">
 <div className="w-16 h-16 gradient-primary rounded-xl flex items-center justify-center text-white text-2xl font-bold">{orgName?.charAt(0)||'?'}</div>
-<div>
+<div className="flex-1">
 <p className="text-xl font-bold text-surface-100">{orgName||'Non défini'}</p>
-<p className="text-sm text-surface-400">Nom de l'organisation</p>
+{organisation?.activite&&<p className="text-sm text-primary-400">{organisation.activite}</p>}
+</div>
+</div>
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div className="p-4 bg-surface-800 rounded-xl">
+<p className="text-xs text-surface-400 mb-1">📍 Adresse</p>
+<p className="text-surface-200">{organisation?.adresse||'Non définie'}</p>
+</div>
+<div className="p-4 bg-surface-800 rounded-xl">
+<p className="text-xs text-surface-400 mb-1">📞 Téléphone</p>
+<p className="text-surface-200">{organisation?.telephone||'Non défini'}</p>
 </div>
 </div>
 </div>
+)}
 </div>
 
 <div className="glass rounded-2xl p-6">
 <h2 className="text-lg font-bold text-surface-100 mb-4">👤 Mon Profil</h2>
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 <div className="p-4 bg-surface-800 rounded-xl">
 <p className="text-xs text-surface-400 mb-1">Nom d'utilisateur</p>
 <p className="font-bold text-surface-100">{user?.username}</p>
@@ -1635,7 +1708,7 @@ if(data.loading)return(<div className="min-h-screen flex items-center justify-ce
 if(data.error)return(<div className="min-h-screen flex items-center justify-center p-4"><Alert type="error" message={'Erreur: '+data.error}/></div>);
 
 return(<div className="min-h-screen bg-surface-950">
-<Side page={page} nav={setPage} user={user} logout={handleLogout} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin} orgName={data.orgName}/>
+<Side page={page} nav={setPage} user={user} logout={handleLogout} isOpen={sidebarOpen} toggle={()=>setSidebarOpen(!sidebarOpen)} isSuperAdmin={isSuperAdmin} orgName={data.organisation?.nom}/>
 <main className="main-content md:ml-64 p-4 md:p-8">
 {page==='dashboard'&&<Dashboard trans={data.trans} banques={data.banques} onNavigate={setPage}/>}
 {page==='transactions'&&<Transactions data={data} user={user} showToast={showToast}/>}

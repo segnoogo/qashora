@@ -55,8 +55,8 @@ const canDo=(role,action)=>ROLES[role]?.permissions?.includes(action)||false;
 // ===== PLANS D'ABONNEMENT =====
 const PLANS={
     trial:{nom:'Essai Gratuit',prix:0,duree:'14 jours',color:'gray',gradient:'gradient-gray',icon:'🎁',limites:{banques:2,transactions:50,utilisateurs:1,exportPDF:false},features:['2 banques max','50 transactions','1 utilisateur','Export Excel uniquement','14 jours d\'essai']},
-    standard:{nom:'Standard',prix:5000,duree:'mois',color:'secondary',gradient:'gradient-secondary',icon:'⭐',limites:{banques:5,transactions:500,utilisateurs:3,exportPDF:true},features:['5 banques max','500 transactions/mois','3 utilisateurs','Export PDF & Excel','Support email']},
-    premium:{nom:'Premium',prix:15000,duree:'mois',color:'primary',gradient:'gradient-primary',icon:'👑',limites:{banques:999,transactions:999,utilisateurs:999,exportPDF:true},features:['Banques illimitées','Transactions illimitées','Utilisateurs illimités','Export PDF & Excel','Support prioritaire']}
+    standard:{nom:'Standard',prix:10000,duree:'mois',color:'secondary',gradient:'gradient-secondary',icon:'⭐',limites:{banques:5,transactions:500,utilisateurs:3,exportPDF:true},features:['5 banques max','500 transactions/mois','3 utilisateurs','Export PDF & Excel','Support email']},
+    premium:{nom:'Premium',prix:23000,duree:'mois',color:'primary',gradient:'gradient-primary',icon:'👑',limites:{banques:999,transactions:999,utilisateurs:999,exportPDF:true},features:['Banques illimitées','Transactions illimitées','Utilisateurs illimités','Export PDF & Excel','Support prioritaire']}
 };
 const WHATSAPP_CONTACT='+221773684203';
 const SUPER_ADMINS=['admin@qashora.com','sawadgsalif@gmail.com'];
@@ -2223,8 +2223,8 @@ return(<tr key={org.id} className="table-row">
 
 <Select label="Plan" value={form.plan} onChange={e=>setForm({...form,plan:e.target.value,montant:PLANS[e.target.value].prix.toString()})} options={[
 {value:'trial',label:'🎁 Essai Gratuit'},
-{value:'standard',label:'⭐ Standard - 5 000 FCFA/mois'},
-{value:'premium',label:'👑 Premium - 15 000 FCFA/mois'}
+{value:'standard',label:'⭐ Standard - 10 000 FCFA/mois'},
+{value:'premium',label:'👑 Premium - 23 000 FCFA/mois'}
 ]}/>
 
 <Input label="Date de fin" type="date" value={form.date_fin} onChange={e=>setForm({...form,date_fin:e.target.value})}/>
